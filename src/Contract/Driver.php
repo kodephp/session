@@ -126,4 +126,21 @@ interface Driver
      * @return string
      */
     public function generateId(): string;
+
+    /**
+     * 获取分布式锁
+     *
+     * @param string $id Session ID
+     * @param int|null $timeout 超时时间
+     * @return bool
+     */
+    public function acquireLock(string $id, int $timeout = null): bool;
+
+    /**
+     * 释放分布式锁
+     *
+     * @param string $id Session ID
+     * @return bool
+     */
+    public function releaseLock(string $id): bool;
 }

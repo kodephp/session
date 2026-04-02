@@ -283,7 +283,7 @@ class FileDriver extends AbstractDriver
      * @param int    $timeout 超时时间（秒）
      * @return bool
      */
-    protected function acquireLock(string $id, int $timeout = 10): bool
+    public function acquireLock(string $id, int $timeout = null): bool
     {
         $lockFile = $this->getLockFile($id);
         $fp = fopen($lockFile, 'c+');
@@ -314,7 +314,7 @@ class FileDriver extends AbstractDriver
      * @param string $id Session ID
      * @return bool
      */
-    protected function releaseLock(string $id): bool
+    public function releaseLock(string $id): bool
     {
         $lockFile = $this->getLockFile($id);
 

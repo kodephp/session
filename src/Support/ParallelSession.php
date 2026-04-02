@@ -130,11 +130,7 @@ class ParallelSession
             return false;
         }
 
-        if (method_exists($this->driver, 'acquireLock')) {
-            return $this->driver->acquireLock($sessionId);
-        }
-
-        return true;
+        return $this->driver->acquireLock($sessionId);
     }
 
     /**
@@ -149,11 +145,7 @@ class ParallelSession
             return false;
         }
 
-        if (method_exists($this->driver, 'releaseLock')) {
-            return $this->driver->releaseLock($sessionId);
-        }
-
-        return true;
+        return $this->driver->releaseLock($sessionId);
     }
 
     /**

@@ -131,4 +131,27 @@ abstract class AbstractDriver implements Driver
      * @return array
      */
     abstract public function all(string $id): array;
+
+    /**
+     * 获取分布式锁（默认实现，返回 true）
+     *
+     * @param string $id Session ID
+     * @param int|null $timeout 超时时间
+     * @return bool
+     */
+    public function acquireLock(string $id, int $timeout = null): bool
+    {
+        return true;
+    }
+
+    /**
+     * 释放分布式锁（默认实现，返回 true）
+     *
+     * @param string $id Session ID
+     * @return bool
+     */
+    public function releaseLock(string $id): bool
+    {
+        return true;
+    }
 }
