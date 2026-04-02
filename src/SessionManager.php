@@ -6,6 +6,7 @@ namespace Kode\Session;
 
 use Kode\Session\Contract\Driver;
 use Kode\Session\Contract\SessionFactory;
+use Kode\Session\Driver\CookieDriver;
 use Kode\Session\Driver\FileDriver;
 use Kode\Session\Driver\RedisDriver;
 
@@ -105,6 +106,7 @@ class SessionManager implements SessionFactory
         return match ($name) {
             'file' => new FileDriver($driverConfig),
             'redis' => new RedisDriver($driverConfig),
+            'cookie' => new CookieDriver($driverConfig),
             default => throw new \InvalidArgumentException("不支持的驱动: {$name}"),
         };
     }

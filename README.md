@@ -1,16 +1,17 @@
 # kode/session
 
-高性能分布式会话管理器，支持文件存储、Redis 存储等多种驱动，可独立使用或集成到其他框架中。
+高性能分布式会话管理器，支持文件、Redis、Cookie 等多种驱动，可独立使用或集成到其他框架中。
 
 ## 特性
 
-- **多驱动支持**：File、Redis 等存储驱动
+- **多驱动支持**：File、Redis、Cookie 等存储驱动
 - **分布式会话**：Redis 驱动支持跨机器共享 session
+- **协程安全**：不使用全局 `$_SESSION`，支持 PHP Fiber/协程
+- **请求隔离**：支持配合 kode/context 做请求内会话隔离
 - **进程/并行支持**：支持多进程并发访问，带分布式锁
-- **Fiber 安全**：在 PHP Fiber 中安全使用 session
 - **PSR-7/15 兼容**：完整的中间件支持
-- **Laravel/ThinkPHP 风格**：API 设计参考主流框架
-- **PHP 8.1+**：使用 readonly、enum 等新特性
+- **闪存数据**：类似 Laravel/ThinkPHP 的 flash 功能
+- **PHP 8.1+**：使用现代 PHP 新特性
 
 ## 安装
 
@@ -26,7 +27,6 @@ composer require kode/session
 <?php
 
 use Kode\Session\SessionManager;
-use Kode\Session\Driver\FileDriver;
 
 $manager = new SessionManager([
     'default' => 'file',
@@ -106,6 +106,33 @@ Redis 驱动支持两种连接方式：
 - phpredis 扩展（优先）
 - predis 包（`composer require predis/predis`）
 
+### Cookie 驱动
+
+基于客户端 Cookie 存储，适合轻量级场景。
+
+```php
+use Kode\Session\Driver\CookieDriver;
+
+$driver = new CookieDriver([
+    'name' => 'kode_session',
+    'lifetime' => 3600,
+    'path' => '/',
+    'secure' => false,
+    'http_only' => true,
+    'samesite' => 'Lax',
+]);
+```
+
+注意：Cookie 有大小限制（通常 4KB），只适合存储少量数据。
+
+## 驱动列表
+
+| 驱动 | 说明 | 使用场景 |
+|------|------|----------|
+| File | 本地文件存储 | 单机部署、开发环境 |
+| Redis | 分布式存储 | 生产环境、多机器部署 |
+| Cookie | 客户端存储 | 轻量级场景、简单数据 |
+
 ## 配置
 
 ### SessionManager 配置
@@ -124,6 +151,10 @@ $manager = new SessionManager([
                 'host' => '127.0.0.1',
                 'port' => 6379,
             ],
+        ],
+        'cookie' => [
+            'name' => 'kode_session',
+            'lifetime' => 3600,
         ],
     ],
 ]);
@@ -187,16 +218,6 @@ $session->flushFlash();     // 清空所有闪存数据
 $session->ageFlash();       // 将新闪存转为旧闪存
 ```
 
-#### 快捷方法
-
-```php
-$session->remember('key', function () {
-    return $cache->get('key');
-});
-
-$session->pull('key', 'default');  // 获取并删除
-```
-
 #### 错误/成功信息
 
 ```php
@@ -227,6 +248,51 @@ $manager->getConfig('key');              // 获取配置
 $manager->setConfig('key', $value);      // 设置配置
 ```
 
+## 协程安全
+
+本包不使用全局 `$_SESSION`，完全在内存中管理 session 数据，支持 PHP Fiber/协程。
+
+### Fiber 中的使用
+
+```php
+use Kode\Session\Support\FiberSessionStorage;
+
+$fiber = new \Fiber(function () {
+    $session = FiberSessionStorage::get('session');
+
+    if ($session === null) {
+        return;
+    }
+
+    $session->set('user_id', 123);
+});
+
+$fiber->start();
+```
+
+## 请求隔离
+
+配合 kode/context 做请求内会话隔离：
+
+```php
+use Kode\Session\Support\ContextSession;
+
+$session = $manager->make($sessionId);
+$session->start();
+
+ContextSession::setSession($session);
+ContextSession::set('request_id', uniqid());
+
+$fiber = new \Fiber(function () {
+    $session = ContextSession::getSession();
+    $requestId = ContextSession::get('request_id');
+
+    var_dump($requestId);
+});
+
+$fiber->start();
+```
+
 ## 分布式和并行
 
 ### 分布式锁
@@ -243,7 +309,6 @@ $parallel = new ParallelSession($manager, [
 $parallel->create($sessionId);
 
 $result = $parallel->withLock(function ($session) {
-    // 原子操作
     return $session->get('counter');
 }, 10);
 ```
@@ -255,17 +320,6 @@ $result = $parallel->fork(function ($session) {
     $session->set('worker_id', getmypid());
     return $session->get('worker_id');
 }, ['shared_data' => 'value']);
-```
-
-### Fiber 支持
-
-```php
-$fiber = $parallel->async(function ($session) {
-    FiberSessionStorage::set('session', $session);
-    return $session->get('user_id');
-});
-
-$result = $fiber->start();
 ```
 
 ## 框架集成
@@ -285,8 +339,6 @@ class Application
         ]);
 
         $this->session->start();
-
-        // 处理请求...
     }
 
     public function terminate($response)
@@ -309,11 +361,13 @@ src/
 │   └── SessionFactory.php # 工厂接口
 ├── Driver/
 │   ├── AbstractDriver.php # 驱动基类
+│   ├── CookieDriver.php   # Cookie 驱动
 │   ├── FileDriver.php     # 文件驱动
 │   └── RedisDriver.php    # Redis 驱动
 ├── Middleware/
 │   └── SessionMiddleware.php # PSR-15 中间件
 ├── Support/
+│   ├── ContextSession.php     # Context 隔离
 │   ├── FiberSessionStorage.php # Fiber 存储
 │   └── ParallelSession.php     # 并行处理
 ├── Session.php           # Session 类
@@ -330,7 +384,8 @@ src/
 
 1. **File 驱动**：适合开发环境和小规模部署
 2. **Redis 驱动**：生产环境推荐，支持分布式和高并发
-3. **GC 回收**：定期运行垃圾回收清理过期 session
+3. **Cookie 驱动**：仅用于轻量级场景，不适合存储大量数据
+4. **GC 回收**：定期运行垃圾回收清理过期 session
 
 ## 驱动扩展
 
@@ -343,15 +398,67 @@ class CustomDriver implements Driver
 {
     public function __construct(array $config = [])
     {
-        // 初始化配置
     }
 
     public function get(string $id, string $name, mixed $default = null): mixed
     {
-        // 获取 session 值
     }
 
-    // ... 实现其他接口方法
+    public function set(string $id, string $name, mixed $value, int $lifetime = 0): bool
+    {
+    }
+
+    public function delete(string $id, string $name): bool
+    {
+    }
+
+    public function has(string $id, string $name): bool
+    {
+    }
+
+    public function clear(string $id): bool
+    {
+    }
+
+    public function pull(string $id, string $name, mixed $default = null): mixed
+    {
+    }
+
+    public function remember(string $id, string $name, callable $callback, int $lifetime = 0): mixed
+    {
+    }
+
+    public function open(string $id): bool
+    {
+    }
+
+    public function close(string $id): bool
+    {
+    }
+
+    public function destroy(string $id): bool
+    {
+    }
+
+    public function gc(int $maxLifetime): int
+    {
+    }
+
+    public function all(string $id): array
+    {
+    }
+
+    public function generateId(): string
+    {
+    }
+
+    public function acquireLock(string $id, int $timeout = null): bool
+    {
+    }
+
+    public function releaseLock(string $id): bool
+    {
+    }
 }
 ```
 
@@ -362,6 +469,15 @@ $manager->extend('custom', function ($config) {
     return new CustomDriver($config);
 });
 ```
+
+## 版本历史
+
+- **v2.0.0** - 新增 Cookie 驱动、ContextSession 支持、协程安全优化
+- **v1.0.4** - 修复 acquireLock/releaseLock 方法
+- **v1.0.3** - 修复 ParallelSession 驱动实例问题
+- **v1.0.2** - 代码优化
+- **v1.0.1** - 修复未使用变量
+- **v1.0.0** - 初始版本，支持 File 和 Redis 驱动
 
 ## 许可证
 
