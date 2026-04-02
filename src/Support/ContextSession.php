@@ -4,27 +4,28 @@ declare(strict_types=1);
 
 namespace Kode\Session\Support;
 
+use Kode\Context\Context;
 use Kode\Session\Session;
 
 /**
  * Context 会话隔离 - 实现请求内会话隔离
  * 配合 kode/context 做请求内会话隔离
  *
- * 使用 ThreadLocal 模式确保协程/多进程环境下的会话隔离
+ * 使用 kode/context 的静态方法实现协程/进程安全的会话隔离
  *
  * @author kode
  */
 class ContextSession
 {
     /**
-     * 当前请求的 session 存储
+     * Session 上下文键名
      */
-    protected static ?Session $current = null;
+    public const SESSION_KEY = 'kode.session';
 
     /**
-     * Session 属性存储
+     * 属性上下文键名前缀
      */
-    protected static array $attributes = [];
+    public const ATTR_PREFIX = 'kode.session.attr.';
 
     /**
      * 设置当前 session
@@ -34,7 +35,7 @@ class ContextSession
      */
     public static function setSession(Session $session): void
     {
-        self::$current = $session;
+        Context::set(self::SESSION_KEY, $session);
     }
 
     /**
@@ -44,7 +45,7 @@ class ContextSession
      */
     public static function getSession(): ?Session
     {
-        return self::$current;
+        return Context::get(self::SESSION_KEY);
     }
 
     /**
@@ -54,7 +55,7 @@ class ContextSession
      */
     public static function hasSession(): bool
     {
-        return self::$current !== null;
+        return Context::has(self::SESSION_KEY);
     }
 
     /**
@@ -64,8 +65,7 @@ class ContextSession
      */
     public static function clearSession(): void
     {
-        self::$current = null;
-        self::$attributes = [];
+        Context::delete(self::SESSION_KEY);
     }
 
     /**
@@ -77,7 +77,7 @@ class ContextSession
      */
     public static function set(string $key, mixed $value): void
     {
-        self::$attributes[$key] = $value;
+        Context::set(self::ATTR_PREFIX . $key, $value);
     }
 
     /**
@@ -89,7 +89,7 @@ class ContextSession
      */
     public static function get(string $key, mixed $default = null): mixed
     {
-        return self::$attributes[$key] ?? $default;
+        return Context::get(self::ATTR_PREFIX . $key, $default);
     }
 
     /**
@@ -100,7 +100,7 @@ class ContextSession
      */
     public static function has(string $key): bool
     {
-        return isset(self::$attributes[$key]);
+        return Context::has(self::ATTR_PREFIX . $key);
     }
 
     /**
@@ -111,7 +111,7 @@ class ContextSession
      */
     public static function delete(string $key): void
     {
-        unset(self::$attributes[$key]);
+        Context::delete(self::ATTR_PREFIX . $key);
     }
 
     /**
@@ -121,7 +121,14 @@ class ContextSession
      */
     public static function clearAttributes(): void
     {
-        self::$attributes = [];
+        $keys = Context::keys();
+        $prefix = self::ATTR_PREFIX;
+
+        foreach ($keys as $key) {
+            if (str_starts_with($key, $prefix)) {
+                Context::delete($key);
+            }
+        }
     }
 
     /**
@@ -131,6 +138,105 @@ class ContextSession
      */
     public static function all(): array
     {
-        return self::$attributes;
+        $result = [];
+        $keys = Context::keys();
+        $prefix = self::ATTR_PREFIX;
+
+        foreach ($keys as $key) {
+            if (str_starts_with($key, $prefix)) {
+                $attrKey = substr($key, strlen($prefix));
+                $result[$attrKey] = Context::get($key);
+            }
+        }
+
+        return $result;
+    }
+
+    /**
+     * 在隔离上下文中执行
+     *
+     * @param callable $callable 要执行的回调
+     * @return mixed
+     */
+    public static function run(callable $callable): mixed
+    {
+        return Context::run(function () use ($callable) {
+            $session = self::getSession();
+
+            $result = $callable($session);
+
+            return $result;
+        });
+    }
+
+    /**
+     * 在新进程中执行（自动传递上下文）
+     *
+     * @param callable $callable 要执行的回调
+     * @param bool $inheritContext 是否继承上下文
+     * @return mixed
+     */
+    public static function fork(callable $callable, bool $inheritContext = true): mixed
+    {
+        return Context::fork(function () use ($callable) {
+            $session = self::getSession();
+
+            return $callable($session);
+        });
+    }
+
+    /**
+     * 导出当前上下文数据
+     *
+     * @return array
+     */
+    public static function export(): array
+    {
+        return Context::export();
+    }
+
+    /**
+     * 导入上下文数据
+     *
+     * @param array $data 数据
+     * @param bool $merge 是否合并
+     * @return void
+     */
+    public static function import(array $data, bool $merge = false): void
+    {
+        Context::import($data, $merge);
+    }
+
+    /**
+     * 重置会话上下文
+     *
+     * @return void
+     */
+    public static function reset(): void
+    {
+        self::clearSession();
+        self::clearAttributes();
+        Context::reset();
+    }
+
+    /**
+     * 获取追踪 ID
+     *
+     * @return string|null
+     */
+    public static function getTraceId(): ?string
+    {
+        $traceInfo = Context::getTraceInfo();
+        return $traceInfo['trace_id'] ?? null;
+    }
+
+    /**
+     * 获取追踪信息
+     *
+     * @return array
+     */
+    public static function getTraceInfo(): array
+    {
+        return Context::getTraceInfo();
     }
 }
