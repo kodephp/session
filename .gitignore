@@ -1,0 +1,29 @@
+# 忽略 .trae 目录
+.trae/
+
+# Composer
+/vendor/
+composer.lock
+
+# PHPUnit
+.phpunit.cache/
+.phpunit.result.cache
+phpunit.xml.dist
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# 测试临时文件
+/tests/runtime/
+
+# 临时文件
+*.tmp
+*.log
