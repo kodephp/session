@@ -363,11 +363,6 @@ $manager->extend('custom', function ($config) {
 });
 ```
 
-## 版本历史
-
-- **v1.0.1** - 修复未使用变量问题，优化代码结构
-- **v1.0.0** - 初始版本，支持 File 和 Redis 驱动
-
 ## 许可证
 
 Apache License 2.0 - see [LICENSE](LICENSE)
