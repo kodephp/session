@@ -174,7 +174,7 @@ class ParallelSession
         $sessionId = $this->session?->getId() ?? $this->manager->createId();
         $pipe = [];
 
-        if (($pipeCount = @socket_create_pair(AF_UNIX, SOCK_STREAM, 0, $pipe)) === false) {
+        if (@socket_create_pair(AF_UNIX, SOCK_STREAM, 0, $pipe) === false) {
             return $this->forkWithStream($callback, $sessionId, $data);
         }
 
