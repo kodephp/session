@@ -32,6 +32,11 @@ class ParallelSession
     protected ?Session $session = null;
 
     /**
+     * 驱动实例
+     */
+    protected ?Driver $driver = null;
+
+    /**
      * 锁超时时间
      */
     protected int $lockTimeout;
@@ -61,6 +66,9 @@ class ParallelSession
         $this->session = $this->manager->make($sessionId, $this->config);
         $this->session->start();
 
+        $driverName = $this->config['driver'] ?? 'file';
+        $this->driver = $this->manager->getDriver($driverName, $this->config);
+
         return $this->session;
     }
 
@@ -88,17 +96,17 @@ class ParallelSession
             throw new \RuntimeException('Session 未创建');
         }
 
-        $driver = $this->session->getId();
+        $sessionId = $this->session->getId();
         $lockTimeout = $timeout ?? $this->lockTimeout;
 
         $start = time();
 
         while (true) {
-            if ($this->acquireLock($driver)) {
+            if ($this->acquireLock($sessionId)) {
                 try {
                     return $callback($this->session);
                 } finally {
-                    $this->releaseLock($driver);
+                    $this->releaseLock($sessionId);
                 }
             }
 
@@ -113,19 +121,17 @@ class ParallelSession
     /**
      * 获取分布式锁
      *
-     * @param string $id Session ID
+     * @param string $sessionId Session ID
      * @return bool
      */
-    protected function acquireLock(string $id): bool
+    protected function acquireLock(string $sessionId): bool
     {
-        if ($this->session === null) {
+        if ($this->driver === null) {
             return false;
         }
 
-        $driver = $this->getDriver();
-
-        if (method_exists($driver, 'acquireLock')) {
-            return $driver->acquireLock($id);
+        if (method_exists($this->driver, 'acquireLock')) {
+            return $this->driver->acquireLock($sessionId);
         }
 
         return true;
@@ -134,32 +140,20 @@ class ParallelSession
     /**
      * 释放分布式锁
      *
-     * @param string $id Session ID
+     * @param string $sessionId Session ID
      * @return bool
      */
-    protected function releaseLock(string $id): bool
+    protected function releaseLock(string $sessionId): bool
     {
-        if ($this->session === null) {
+        if ($this->driver === null) {
             return false;
         }
 
-        $driver = $this->getDriver();
-
-        if (method_exists($driver, 'releaseLock')) {
-            return $driver->releaseLock($id);
+        if (method_exists($this->driver, 'releaseLock')) {
+            return $this->driver->releaseLock($sessionId);
         }
 
         return true;
-    }
-
-    /**
-     * 获取驱动
-     *
-     * @return Driver
-     */
-    protected function getDriver(): Driver
-    {
-        return $this->manager->getDriver($this->config['driver'] ?? 'file');
     }
 
     /**
