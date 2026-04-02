@@ -470,15 +470,6 @@ $manager->extend('custom', function ($config) {
 });
 ```
 
-## 版本历史
-
-- **v2.0.0** - 新增 Cookie 驱动、ContextSession 支持、协程安全优化
-- **v1.0.4** - 修复 acquireLock/releaseLock 方法
-- **v1.0.3** - 修复 ParallelSession 驱动实例问题
-- **v1.0.2** - 代码优化
-- **v1.0.1** - 修复未使用变量
-- **v1.0.0** - 初始版本，支持 File 和 Redis 驱动
-
 ## 许可证
 
 Apache License 2.0 - see [LICENSE](LICENSE)

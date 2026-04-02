@@ -2,7 +2,7 @@
     "name": "kode/session",
     "description": "kode/session - 分布式会话管理器，支持文件、Redis等驱动",
     "license": "Apache-2.0",
-    "version": "2.0.1",
+    "version": "2.0.2",
     "type": "library",
     "keywords": [
         "session",

@@ -217,7 +217,7 @@ class ParallelSession
      * @param array   $data     数据
      * @return mixed
      */
-    protected function forkWithStream(callable $callback, string $sessionId, array $data): mixed
+    protected function forkWithStream(callable $callback, string $_sessionId, array $_data): mixed
     {
         return $callback($this->session);
     }
