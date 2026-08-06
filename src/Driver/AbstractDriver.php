@@ -27,6 +27,16 @@ abstract class AbstractDriver implements Driver
     protected const string FIELD_EXPIRE = 'expire';
 
     /**
+     * 压缩载荷前缀（标准 gzip 压缩后 base64）
+     */
+    protected const string PREFIX_COMPRESSED = 'kz1:';
+
+    /**
+     * 压缩失败时的未压缩降级载荷前缀（仍可还原）
+     */
+    protected const string PREFIX_RAW = 'kz0:';
+
+    /**
      * 配置
      *
      * @var array<string, mixed>
@@ -59,6 +69,16 @@ abstract class AbstractDriver implements Driver
     protected ?Encrypter $encrypter = null;
 
     /**
+     * 是否启用透明压缩（写入存储层前对值做 gzip 压缩，减少体积与 I/O）
+     */
+    protected bool $compressed = false;
+
+    /**
+     * gzip 压缩级别（-1 表示 zlib 默认级别，0~9 调节体积/速度权衡）
+     */
+    protected int $compressionLevel;
+
+    /**
      * 构造函数
      *
      * @param array<string, mixed> $config 配置数组
@@ -75,6 +95,14 @@ abstract class AbstractDriver implements Driver
             $this->encrypted = true;
             $this->encrypter = new Encrypter($secret);
         }
+
+        $this->compressed = !empty($config['compress']);
+
+        if ($this->compressed && !extension_loaded('zlib')) {
+            throw new \RuntimeException('启用会话压缩需要 zlib 扩展');
+        }
+
+        $this->compressionLevel = (int) ($config['compression_level'] ?? -1);
     }
 
     /**
@@ -207,7 +235,9 @@ abstract class AbstractDriver implements Driver
     }
 
     /**
-     * 包装值（附带过期信息；启用加密时 data 为密文）
+     * 包装值（附带过期信息；启用压缩 / 加密时 data 为压缩 / 密文字符串）
+     *
+     * 处理顺序：先压缩（可选）后加密（可选），使加密层也能掩盖压缩特征。
      *
      * @param mixed $value    原始值
      * @param int   $lifetime 生命周期
@@ -217,8 +247,14 @@ abstract class AbstractDriver implements Driver
     {
         $ttl = $lifetime > 0 ? $lifetime : $this->defaultLifetime;
 
+        $stored = $this->compressed ? $this->compressValue($value) : $value;
+
+        if ($this->encrypted) {
+            $stored = $this->encrypter->encrypt($stored);
+        }
+
         return [
-            self::FIELD_DATA => $this->encrypted ? $this->encrypter->encrypt($value) : $value,
+            self::FIELD_DATA => $stored,
             self::FIELD_EXPIRE => $ttl > 0 ? time() + $ttl : 0,
         ];
     }
@@ -257,10 +293,87 @@ abstract class AbstractDriver implements Driver
 
             $decrypted = $this->encrypter->decrypt($data);
 
-            return $decrypted ?? $default;
+            if ($decrypted === null) {
+                return $default;
+            }
+
+            $data = $decrypted;
+        }
+
+        if ($this->compressed && is_string($data) && self::isCompressed($data)) {
+            $decoded = $this->decompressValue($data);
+
+            if ($decoded === null) {
+                return $default;
+            }
+
+            $data = $decoded;
         }
 
         return $data;
+    }
+
+    /**
+     * 压缩任意可序列化值为带前缀的字符串
+     *
+     * 正常走 gzip（前缀 kz1:）；压缩失败（极端内存不足）降级为未压缩存储（前缀 kz0:），
+     * 保证解包时仍可还原，不会因压缩异常而丢失会话数据。
+     *
+     * @param mixed $value 原始值
+     */
+    protected function compressValue(mixed $value): string
+    {
+        $serialized = serialize($value);
+        $compressed = gzcompress($serialized, $this->compressionLevel);
+
+        if ($compressed === false) {
+            return self::PREFIX_RAW . base64_encode($serialized);
+        }
+
+        return self::PREFIX_COMPRESSED . base64_encode($compressed);
+    }
+
+    /**
+     * 还原 compressValue 产生的字符串
+     *
+     * @return mixed|null 还原失败返回 null（由上层降级为默认值）
+     */
+    protected function decompressValue(string $payload): mixed
+    {
+        if (str_starts_with($payload, self::PREFIX_RAW)) {
+            $raw = base64_decode(substr($payload, strlen(self::PREFIX_RAW)), true);
+
+            return $raw === false ? null : @unserialize($raw, ['allowed_classes' => true]);
+        }
+
+        if (!str_starts_with($payload, self::PREFIX_COMPRESSED)) {
+            return null;
+        }
+
+        $raw = base64_decode(substr($payload, strlen(self::PREFIX_COMPRESSED)), true);
+
+        if ($raw === false) {
+            return null;
+        }
+
+        $uncompressed = gzuncompress($raw);
+
+        if ($uncompressed === false) {
+            return null;
+        }
+
+        $value = @unserialize($uncompressed, ['allowed_classes' => true]);
+
+        return $value !== false ? $value : null;
+    }
+
+    /**
+     * 判断字符串是否为本包压缩载荷（含压缩失败降级标记）
+     */
+    public static function isCompressed(string $value): bool
+    {
+        return str_starts_with($value, self::PREFIX_COMPRESSED)
+            || str_starts_with($value, self::PREFIX_RAW);
     }
 
     /**

@@ -8,6 +8,8 @@
 - **分布式会话**：Redis / Database 驱动支持跨机器共享 session
 - **数据库驱动**：基于 PDO，兼容 SQLite / MySQL / PostgreSQL，一行一键模型 + 跨库 upsert + 抢占式分布式锁
 - **透明加密**：可开启 AES-256-GCM 透明加密，落库数据均为密文（密钥由 secret 经 PBKDF2 衍生），存储泄漏也无法还原明文
+- **透明压缩**：可开启 gzip 压缩，落库体积显著缩小（大会话尤为明显），与加密可叠加（先压缩后加密）
+- **强类型访问器**：`getInt/getFloat/getBool/getString/getArray` 按目标类型强制转换，避免手动类型判断
 - **延迟写盘**：`set/delete` 仅更新内存与脏标记，落盘推迟到 `save()/close()` 一次性批量完成，减少 I/O 往返
 - **概率化 GC**：中间件按 `gc_probability/gc_divisor` 概率触发回收，避免每请求扫描过期数据
 - **协程安全**：不使用全局 `$_SESSION`，支持 PHP Fiber/协程
@@ -196,6 +198,41 @@ $manager = new SessionManager([
 - 每条密文携带独立随机 IV 与 GCM 认证标签，防重放与篡改。
 - 解密失败（密钥不符 / 数据被篡改）时自动降级为默认值，不会抛异常。
 - 密文以 `kenc1:` 前缀标识，未开启加密的旧数据可向后兼容读取。
+
+### 透明压缩
+
+任意驱动均可开启 gzip 压缩，对写入存储层的值做压缩，显著降低落库体积（文本类 / 大数组类会话尤为明显）。压缩与加密可同时开启，处理顺序为「先压缩后加密」，加密层还能进一步掩盖压缩特征。
+
+```php
+$manager = new SessionManager([
+    'default' => 'file',
+    'drivers' => [
+        'file' => [
+            'path' => '/tmp/sessions',
+            'compress' => true,          // 开启透明压缩
+            'compression_level' => 6,    // 0~9，默认 -1（zlib 默认级别），数值越大体积越小、越慢
+        ],
+    ],
+]);
+```
+
+- 依赖 `ext-zlib`（PHP 内置扩展，已在 composer 中声明）。
+- 压缩载荷以 `kz1:` 前缀标识；极端情况下压缩失败时降级为未压缩存储（`kz0:` 前缀），保证数据可还原、不丢会话。
+- 未开启压缩的旧数据向后兼容读取。
+
+### 强类型访问器
+
+读取时按目标类型强制转换，省去手动 `is_numeric` / `filter_var` 判断：
+
+```php
+$session->getInt('views');       // int：兼容 int / 数值字符串 / bool
+$session->getFloat('price');     // float：兼容 float / int / 数值字符串 / bool
+$session->getBool('active');     // bool：兼容 bool / 数值 / "true"/"false"/"yes"/"no" 等
+$session->getString('name');     // string：兼容 string / int / float / bool
+$session->getArray('items');     // array：仅当存储值本身是数组时返回，否则回退默认值
+```
+
+每个方法都带类型默认值（如 `getInt('x', 7)`），缺失或非可转换值时返回默认值。
 
 ### 延迟写盘（lazy write-through）
 
@@ -529,7 +566,8 @@ src/
 4. **Database 驱动**：适合已有数据库基础设施、希望会话入库的场景；采用跨库 upsert 与抢占式锁
 5. **延迟写盘**：批量 `set/delete` 只在 `save()` 时落盘一次，避免每个 `set` 触发驱动 I/O
 6. **透明加密**：开启后写入为密文，加解密有少量开销，仅对敏感场景建议开启
-7. **GC 回收**：中间件按概率触发，必要时可在长周期任务中手动调用 `$manager->gc()` 清理过期 session
+7. **透明压缩**：对文本 / 大数组类会话可显著缩小落库体积、降低 I/O，与加密叠加时「先压缩后加密」几乎不增加额外开销
+8. **GC 回收**：中间件按概率触发，必要时可在长周期任务中手动调用 `$manager->gc()` 清理过期 session
 
 ## 驱动扩展
 

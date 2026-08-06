@@ -322,6 +322,138 @@ class Session implements SessionContract, ArrayAccess, Countable, IteratorAggreg
     }
 
     /**
+     * 强类型读取：整数
+     *
+     * 兼容 int / 数值字符串 / bool；其余类型回退默认值。
+     *
+     * @param string $name    键名
+     * @param int    $default 默认值
+     */
+    public function getInt(string $name, int $default = 0): int
+    {
+        $value = $this->get($name);
+
+        if (is_int($value)) {
+            return $value;
+        }
+
+        if (is_bool($value)) {
+            return $value ? 1 : 0;
+        }
+
+        if (is_numeric($value)) {
+            return (int) $value;
+        }
+
+        return $default;
+    }
+
+    /**
+     * 强类型读取：浮点数
+     *
+     * 兼容 float / int / 数值字符串 / bool；其余类型回退默认值。
+     *
+     * @param string $name    键名
+     * @param float  $default 默认值
+     */
+    public function getFloat(string $name, float $default = 0.0): float
+    {
+        $value = $this->get($name);
+
+        if (is_float($value) || is_int($value)) {
+            return (float) $value;
+        }
+
+        if (is_bool($value)) {
+            return $value ? 1.0 : 0.0;
+        }
+
+        if (is_numeric($value)) {
+            return (float) $value;
+        }
+
+        return $default;
+    }
+
+    /**
+     * 强类型读取：布尔
+     *
+     * 兼容 bool / 数值（非 0 为真）/ "true"/"false"/"1"/"0"/"yes"/"no" 等字符串。
+     *
+     * @param string $name   键名
+     * @param bool   $default 默认值
+     */
+    public function getBool(string $name, bool $default = false): bool
+    {
+        $value = $this->get($name);
+
+        if (is_bool($value)) {
+            return $value;
+        }
+
+        if (is_int($value) || is_float($value)) {
+            return $value !== 0;
+        }
+
+        if (is_string($value)) {
+            return filter_var($value, FILTER_VALIDATE_BOOLEAN, FILTER_NULL_ON_FAILURE) ?? $default;
+        }
+
+        return $default;
+    }
+
+    /**
+     * 强类型读取：字符串
+     *
+     * 兼容 string / int / float / bool；数组与对象无法安全转换时回退默认值。
+     *
+     * @param string $name    键名
+     * @param string $default 默认值
+     */
+    public function getString(string $name, string $default = ''): string
+    {
+        $value = $this->get($name);
+
+        if (is_string($value)) {
+            return $value;
+        }
+
+        if (is_int($value) || is_float($value)) {
+            return (string) $value;
+        }
+
+        if (is_bool($value)) {
+            return $value ? '1' : '0';
+        }
+
+        if ($value === null) {
+            return $default;
+        }
+
+        if (is_scalar($value)) {
+            return (string) $value;
+        }
+
+        return $default;
+    }
+
+    /**
+     * 强类型读取：数组
+     *
+     * 仅当存储值本身就是数组时返回，否则回退默认值（不对标量做包装）。
+     *
+     * @param string $name   键名
+     * @param array  $default 默认值
+     * @return array<string, mixed>
+     */
+    public function getArray(string $name, array $default = []): array
+    {
+        $value = $this->get($name);
+
+        return is_array($value) ? $value : $default;
+    }
+
+    /**
      * 删除数据
      *
      * @param string $name 键名

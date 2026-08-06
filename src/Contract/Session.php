@@ -98,6 +98,51 @@ interface Session extends ArrayAccess, Countable, IteratorAggregate
     public function set(string $name, mixed $value): void;
 
     /**
+     * 强类型读取：整数（兼容 int / 数值字符串 / bool）
+     *
+     * @param string $name    键名
+     * @param int    $default 默认值
+     * @return int
+     */
+    public function getInt(string $name, int $default = 0): int;
+
+    /**
+     * 强类型读取：浮点数（兼容 float / int / 数值字符串 / bool）
+     *
+     * @param string $name    键名
+     * @param float  $default 默认值
+     * @return float
+     */
+    public function getFloat(string $name, float $default = 0.0): float;
+
+    /**
+     * 强类型读取：布尔（兼容 bool / 数值 / "true"/"false" 等字符串）
+     *
+     * @param string $name    键名
+     * @param bool   $default 默认值
+     * @return bool
+     */
+    public function getBool(string $name, bool $default = false): bool;
+
+    /**
+     * 强类型读取：字符串（兼容 string / int / float / bool）
+     *
+     * @param string $name    键名
+     * @param string $default 默认值
+     * @return string
+     */
+    public function getString(string $name, string $default = ''): string;
+
+    /**
+     * 强类型读取：数组（仅当存储值为数组时返回，否则回退默认值）
+     *
+     * @param string $name   键名
+     * @param array  $default 默认值
+     * @return array
+     */
+    public function getArray(string $name, array $default = []): array;
+
+    /**
      * 删除数据
      *
      * @param string $name 键名
