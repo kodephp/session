@@ -4,8 +4,12 @@
 
 ## 特性
 
-- **多驱动支持**：File、Redis、Cookie、Array（内存）等存储驱动
-- **分布式会话**：Redis 驱动支持跨机器共享 session
+- **多驱动支持**：File、Redis、Cookie、Array（内存）、Database（PDO）等存储驱动
+- **分布式会话**：Redis / Database 驱动支持跨机器共享 session
+- **数据库驱动**：基于 PDO，兼容 SQLite / MySQL / PostgreSQL，一行一键模型 + 跨库 upsert + 抢占式分布式锁
+- **透明加密**：可开启 AES-256-GCM 透明加密，落库数据均为密文（密钥由 secret 经 PBKDF2 衍生），存储泄漏也无法还原明文
+- **延迟写盘**：`set/delete` 仅更新内存与脏标记，落盘推迟到 `save()/close()` 一次性批量完成，减少 I/O 往返
+- **概率化 GC**：中间件按 `gc_probability/gc_divisor` 概率触发回收，避免每请求扫描过期数据
 - **协程安全**：不使用全局 `$_SESSION`，支持 PHP Fiber/协程
 - **请求隔离**：支持配合 kode/context 做请求内会话隔离
 - **进程/并行支持**：支持多进程并发访问，带分布式锁
@@ -137,6 +141,96 @@ use Kode\Session\Driver\ArrayDriver;
 $driver = new ArrayDriver(); // 可选传入 ['gc_probability' => 100] 强制每次 GC
 ```
 
+### Database 驱动
+
+基于 PDO 的数据库存储，兼容 SQLite / MySQL / PostgreSQL，适合已有数据库基础设施、希望会话入库的场景。
+
+```php
+use Kode\Session\Driver\DatabaseDriver;
+
+$driver = new DatabaseDriver([
+    'dsn'        => 'mysql:host=127.0.0.1;dbname=kode;charset=utf8mb4',
+    'username'   => 'kode',
+    'password'   => 'secret',
+    'table'      => 'kode_sessions',   // 会话表（自动建表，主键 id+name）
+    'lock_table' => 'kode_session_locks', // 分布式锁表
+    'lock_timeout' => 10,              // 锁超时（秒）
+]);
+```
+
+- 建表幂等：`kode_sessions(id, name, payload, expire)` 与 `kode_session_locks(id, token, expire)`。
+- upsert 采用「先 UPDATE 后 INSERT + 23000 冲突回退」的跨库兼容写法，不依赖特定方言。
+- 分布式锁基于独立锁表（INSERT 抢占 / 过期可重新认领），跨数据库通用。
+- 通过 `SessionManager` 使用时只需在 `drivers` 配置 `database` 项并设 `default => 'database'`。
+
+```php
+$manager = new SessionManager([
+    'default' => 'database',
+    'drivers' => [
+        'database' => [
+            'dsn' => 'sqlite:/path/to/sessions.db',
+            'table' => 'kode_sessions',
+        ],
+    ],
+]);
+```
+
+### 透明加密
+
+任意驱动均可开启透明加密，写入存储层前对值做 AES-256-GCM 加密，存储泄漏也无法还原明文。
+
+```php
+$manager = new SessionManager([
+    'default' => 'file',
+    'drivers' => [
+        'file' => [
+            'path' => '/tmp/sessions',
+            'encrypted' => true,   // 开启透明加密
+            'secret' => 'your-strong-secret', // 任意长度，内部经 PBKDF2 衍生为 32 字节密钥
+        ],
+    ],
+]);
+```
+
+- 密钥由 `secret` 经 PBKDF2-SHA256 衍生为 AES-256 密钥，无需直接使用弱密钥。
+- 每条密文携带独立随机 IV 与 GCM 认证标签，防重放与篡改。
+- 解密失败（密钥不符 / 数据被篡改）时自动降级为默认值，不会抛异常。
+- 密文以 `kenc1:` 前缀标识，未开启加密的旧数据可向后兼容读取。
+
+### 延迟写盘（lazy write-through）
+
+`set/delete` 只更新内存与脏标记（`dirty` / `removed`），真正落盘推迟到 `save()/close()` 一次性批量完成，减少每个 `set` 触发的驱动 I/O（文件重写 / Redis 往返）。
+
+```php
+$session->set('a', 1);
+$session->set('b', 2);
+$session->delete('c');
+
+// 此刻另一会话尚读不到本次写入（未落盘）
+// ...
+
+$session->save(); // 脏键批量写入、删除键逐条删除，仅一次落盘
+```
+
+- `isDirty()` / `hasChanges()` 反映是否存在待落盘的变更。
+- `regenerate()`、`destroy()`、`close()` 会先刷写未落盘的变更，避免丢失本请求写入。
+
+### 概率化垃圾回收（GC）
+
+中间件按概率触发 GC，避免每请求都扫描过期数据：
+
+```php
+$middleware = new SessionMiddleware($manager, [
+    'name' => 'KODE_SESSION',
+    'lifetime' => 3600,
+    'gc_probability' => 1,   // 触发分子（默认 1）
+    'gc_divisor' => 100,     // 触发分母（默认 100），即 ~1% 请求触发
+    'gc_lifetime' => 3600,   // 回收时的最大生命周期（默认取 lifetime）
+]);
+```
+
+也可手动在长周期任务中调用 `$manager->gc($maxLifetime, $config)` 强制回收。
+
 ## 驱动列表
 
 | 驱动 | 说明 | 使用场景 |
@@ -145,6 +239,7 @@ $driver = new ArrayDriver(); // 可选传入 ['gc_probability' => 100] 强制每
 | Redis | 分布式存储 | 生产环境、多机器部署 |
 | Cookie | 客户端存储 | 轻量级场景、简单数据 |
 | Array | 内存存储 | 单元测试、CLI、临时会话 |
+| Database | PDO 数据库存储（SQLite/MySQL/PostgreSQL） | 已有数据库基础设施、会话入库 |
 
 ## 配置
 
@@ -217,6 +312,9 @@ $session->clear();               // 清空所有数据
 
 $session->all();                 // 获取所有数据
 $session->pull('key');            // 获取并删除
+
+$session->isDirty();             // 是否存在待落盘的变更（set/delete 之后、save 之前为 true）
+$session->hasChanges();          // isDirty 的别名
 ```
 
 #### 进阶操作
@@ -278,6 +376,7 @@ $manager->getDriver($name);              // 获取驱动
 $manager->createId();                    // 创建新 session ID
 $manager->getConfig('key');              // 获取配置
 $manager->setConfig('key', $value);      // 设置配置
+$manager->gc($maxLifetime, $config);     // 手动触发垃圾回收（默认驱动，可覆盖 config）
 ```
 
 ## 协程安全
@@ -392,9 +491,10 @@ src/
 │   ├── Session.php         # Session 接口
 │   └── SessionFactory.php   # 工厂接口
 ├── Driver/
-│   ├── AbstractDriver.php   # 驱动基类（wrap/unwrap、锁、GC 等公共逻辑）
+│   ├── AbstractDriver.php   # 驱动基类（wrap/unwrap、透明加密、锁、GC 等公共逻辑）
 │   ├── ArrayDriver.php      # 内存驱动
 │   ├── CookieDriver.php     # Cookie 驱动（HMAC 签名）
+│   ├── DatabaseDriver.php   # 数据库驱动（PDO：SQLite/MySQL/PostgreSQL）
 │   ├── FileDriver.php       # 文件驱动
 │   └── RedisDriver.php      # Redis 驱动
 ├── Exception/
@@ -406,6 +506,7 @@ src/
 │   └── SessionMiddleware.php # PSR-15 中间件
 ├── Support/
 │   ├── ContextSession.php     # Context 隔离
+│   ├── Encrypter.php          # AES-256-GCM 透明加密（PBKDF2 衍生密钥）
 │   ├── FiberSessionStorage.php # Fiber 存储（WeakMap）
 │   ├── ParallelSession.php     # 并行处理
 │   └── SessionId.php           # ID 生成与强校验
@@ -425,7 +526,10 @@ src/
 1. **File 驱动**：适合开发环境和小规模部署
 2. **Redis 驱动**：生产环境推荐，支持分布式和高并发
 3. **Cookie 驱动**：仅用于轻量级场景，不适合存储大量数据
-4. **GC 回收**：定期运行垃圾回收清理过期 session
+4. **Database 驱动**：适合已有数据库基础设施、希望会话入库的场景；采用跨库 upsert 与抢占式锁
+5. **延迟写盘**：批量 `set/delete` 只在 `save()` 时落盘一次，避免每个 `set` 触发驱动 I/O
+6. **透明加密**：开启后写入为密文，加解密有少量开销，仅对敏感场景建议开启
+7. **GC 回收**：中间件按概率触发，必要时可在长周期任务中手动调用 `$manager->gc()` 清理过期 session
 
 ## 驱动扩展
 

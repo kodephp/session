@@ -8,6 +8,7 @@ use Kode\Session\Contract\Driver;
 use Kode\Session\Contract\SessionFactory;
 use Kode\Session\Driver\ArrayDriver;
 use Kode\Session\Driver\CookieDriver;
+use Kode\Session\Driver\DatabaseDriver;
 use Kode\Session\Driver\FileDriver;
 use Kode\Session\Driver\RedisDriver;
 use Kode\Session\Support\SessionId;
@@ -128,6 +129,7 @@ class SessionManager implements SessionFactory
             'redis' => new RedisDriver($driverConfig),
             'cookie' => new CookieDriver($driverConfig),
             'array' => new ArrayDriver($driverConfig),
+            'database' => new DatabaseDriver($driverConfig),
             default => throw new \InvalidArgumentException("不支持的驱动: {$name}"),
         };
     }
@@ -261,6 +263,23 @@ class SessionManager implements SessionFactory
     public function extend(string $name, callable $callback): void
     {
         $this->creators[$name] = $callback;
+    }
+
+    /**
+     * 触发垃圾回收
+     *
+     * 中间件按概率调用；也可手动在长周期任务中调用。
+     *
+     * @param int   $maxLifetime 最大生命周期（秒），0 表示仅清理已过期键、不按文件 mtime 删除
+     * @param array $config      可选驱动配置（覆盖默认驱动）
+     * @return int 清理的条目数量
+     */
+    public function gc(int $maxLifetime, array $config = []): int
+    {
+        $driverName = $config['driver'] ?? $this->defaultDriver;
+        $driver = $this->getDriver($driverName, $config);
+
+        return $driver->gc($maxLifetime);
     }
 
     /**

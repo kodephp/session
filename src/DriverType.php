@@ -24,6 +24,9 @@ enum DriverType: string
     /** 进程内内存存储 */
     case Array_ = 'array';
 
+    /** 关系型数据库存储（PDO：SQLite / MySQL / PostgreSQL） */
+    case Database = 'database';
+
     /**
      * 默认驱动
      */
@@ -54,7 +57,7 @@ enum DriverType: string
      */
     public function isDistributed(): bool
     {
-        return $this === self::Redis;
+        return $this === self::Redis || $this === self::Database;
     }
 
     /**
@@ -63,7 +66,7 @@ enum DriverType: string
     public function isPersistent(): bool
     {
         return match ($this) {
-            self::File, self::Redis => true,
+            self::File, self::Redis, self::Database => true,
             self::Cookie, self::Array_ => false,
         };
     }

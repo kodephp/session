@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Kode\Session\Driver;
 
 use Kode\Session\Contract\Driver;
+use Kode\Session\Support\Encrypter;
 use Kode\Session\Support\SessionId;
 
 /**
@@ -48,6 +49,16 @@ abstract class AbstractDriver implements Driver
     protected int $defaultLifetime;
 
     /**
+     * 是否启用透明加密（写入存储层前对值加密）
+     */
+    protected bool $encrypted = false;
+
+    /**
+     * 加解密器（启用加密时实例化）
+     */
+    protected ?Encrypter $encrypter = null;
+
+    /**
      * 构造函数
      *
      * @param array<string, mixed> $config 配置数组
@@ -58,6 +69,12 @@ abstract class AbstractDriver implements Driver
         $this->path = (string) ($config['path'] ?? sys_get_temp_dir());
         $this->prefix = (string) ($config['prefix'] ?? 'kode_session_');
         $this->defaultLifetime = (int) ($config['lifetime'] ?? 0);
+
+        if (!empty($config['encrypted'])) {
+            $secret = (string) ($config['secret'] ?? '');
+            $this->encrypted = true;
+            $this->encrypter = new Encrypter($secret);
+        }
     }
 
     /**
@@ -190,7 +207,7 @@ abstract class AbstractDriver implements Driver
     }
 
     /**
-     * 包装值（附带过期信息）
+     * 包装值（附带过期信息；启用加密时 data 为密文）
      *
      * @param mixed $value    原始值
      * @param int   $lifetime 生命周期
@@ -201,7 +218,7 @@ abstract class AbstractDriver implements Driver
         $ttl = $lifetime > 0 ? $lifetime : $this->defaultLifetime;
 
         return [
-            self::FIELD_DATA => $value,
+            self::FIELD_DATA => $this->encrypted ? $this->encrypter->encrypt($value) : $value,
             self::FIELD_EXPIRE => $ttl > 0 ? time() + $ttl : 0,
         ];
     }
@@ -220,7 +237,7 @@ abstract class AbstractDriver implements Driver
     }
 
     /**
-     * 解包值
+     * 解包值（启用加密时自动解密；解密失败降级为默认值）
      *
      * @param mixed $value   包装值
      * @param mixed $default 默认值
@@ -231,7 +248,19 @@ abstract class AbstractDriver implements Driver
             return $default;
         }
 
-        return $value[self::FIELD_DATA];
+        $data = $value[self::FIELD_DATA];
+
+        if ($this->encrypted) {
+            if (!is_string($data) || !Encrypter::isEncrypted($data)) {
+                return $default;
+            }
+
+            $decrypted = $this->encrypter->decrypt($data);
+
+            return $decrypted ?? $default;
+        }
+
+        return $data;
     }
 
     /**

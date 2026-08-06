@@ -68,6 +68,8 @@ class SessionMiddleware implements MiddlewareInterface
         try {
             $response = $handler->handle($request);
 
+            $this->maybeGarbageCollect();
+
             if ($session->isStarted()) {
                 $this->saveSession($session, $response);
             }
@@ -78,6 +80,29 @@ class SessionMiddleware implements MiddlewareInterface
                 $session->close();
             }
         }
+    }
+
+    /**
+     * 按概率触发垃圾回收，避免每请求都扫描过期数据
+     *
+     * 配置项：gc_probability（默认 1）、gc_divisor（默认 100）、gc_lifetime（默认取 lifetime）
+     */
+    protected function maybeGarbageCollect(): void
+    {
+        $probability = (int) ($this->config['gc_probability'] ?? 1);
+        $divisor = (int) ($this->config['gc_divisor'] ?? 100);
+
+        if ($probability <= 0 || $divisor <= 0 || $probability > $divisor) {
+            return;
+        }
+
+        if (random_int(1, $divisor) > $probability) {
+            return;
+        }
+
+        $lifetime = (int) ($this->config['gc_lifetime'] ?? $this->config['lifetime'] ?? 0);
+
+        $this->manager->gc($lifetime, $this->config);
     }
 
     /**

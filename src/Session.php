@@ -78,6 +78,20 @@ class Session implements SessionContract, ArrayAccess, Countable, IteratorAggreg
     protected ?string $csrfToken = null;
 
     /**
+     * 已变更（待落盘）的键集合
+     *
+     * @var array<string, true>
+     */
+    protected array $dirty = [];
+
+    /**
+     * 本次请求内被删除（待落盘删除）的键集合
+     *
+     * @var array<string, true>
+     */
+    protected array $removed = [];
+
+    /**
      * 闪存键：本轮新增
      */
     protected const FLASH_NEW = '_flash_new';
@@ -175,7 +189,7 @@ class Session implements SessionContract, ArrayAccess, Countable, IteratorAggreg
     }
 
     /**
-     * 关闭 session（不写回）
+     * 关闭 session（兜底落盘未保存的变更，再释放锁）
      */
     public function close(): bool
     {
@@ -184,6 +198,7 @@ class Session implements SessionContract, ArrayAccess, Countable, IteratorAggreg
         }
 
         $this->ageFlash();
+        $this->flushData();
         $this->driver->close($this->id);
         $this->started = false;
 
@@ -195,6 +210,8 @@ class Session implements SessionContract, ArrayAccess, Countable, IteratorAggreg
      */
     public function destroy(): bool
     {
+        $this->dirty = [];
+        $this->removed = [];
         $this->data = [];
         $this->oldFlash = [];
         $this->newFlash = [];
@@ -208,11 +225,14 @@ class Session implements SessionContract, ArrayAccess, Countable, IteratorAggreg
     /**
      * 重新生成 session ID（迁移旧数据到新 ID，防会话固定）
      *
+     * 先把缓存中未落盘的变更刷写到旧 ID，确保 migrate 不会丢失本请求的写入。
+     *
      * @param bool $delete 是否删除旧 session 数据
      */
     public function regenerate(bool $delete = false): bool
     {
         $oldId = $this->id;
+        $this->flushData();
 
         do {
             $this->id = $this->driver->generateId();
@@ -223,6 +243,9 @@ class Session implements SessionContract, ArrayAccess, Countable, IteratorAggreg
 
     /**
      * 保存 session 数据并关闭
+     *
+     * 采用延迟写盘：set/delete 仅更新内存与脏标记，真正落盘在此一次性批量完成，
+     * 避免每个 set 都触发一次驱动 I/O（文件重写 / Redis 往返）。
      */
     public function save(): void
     {
@@ -230,10 +253,7 @@ class Session implements SessionContract, ArrayAccess, Countable, IteratorAggreg
             return;
         }
 
-        $regular = $this->data;
-        unset($regular[self::FLASH_NEW], $regular[self::FLASH_OLD]);
-
-        $this->driver->setMultiple($this->id, $regular, 0);
+        $this->flushData();
         $this->driver->set($this->id, self::FLASH_NEW, $this->newFlash, 0);
         $this->driver->set($this->id, self::FLASH_OLD, $this->oldFlash, 0);
 
@@ -269,6 +289,11 @@ class Session implements SessionContract, ArrayAccess, Countable, IteratorAggreg
             return $this->oldFlash[$name];
         }
 
+        // 本次请求内已删除、尚未落盘的键，直接视为不存在
+        if (isset($this->removed[$name])) {
+            return $default;
+        }
+
         if (in_array($name, self::SYSTEM_KEYS, true)) {
             return $default;
         }
@@ -292,7 +317,8 @@ class Session implements SessionContract, ArrayAccess, Countable, IteratorAggreg
     public function set(string $name, mixed $value): void
     {
         $this->data[$name] = $value;
-        $this->driver->set($this->id, $name, $value);
+        $this->dirty[$name] = true;
+        unset($this->removed[$name]);
     }
 
     /**
@@ -302,13 +328,11 @@ class Session implements SessionContract, ArrayAccess, Countable, IteratorAggreg
      */
     public function delete(string $name): bool
     {
-        if (!isset($this->data[$name]) && !array_key_exists($name, $this->data)) {
-            return true;
-        }
-
         unset($this->data[$name]);
+        $this->removed[$name] = true;
+        unset($this->dirty[$name]);
 
-        return $this->driver->delete($this->id, $name);
+        return true;
     }
 
     /**
@@ -326,6 +350,10 @@ class Session implements SessionContract, ArrayAccess, Countable, IteratorAggreg
             return true;
         }
 
+        if (isset($this->removed[$name])) {
+            return false;
+        }
+
         if (in_array($name, self::SYSTEM_KEYS, true)) {
             return false;
         }
@@ -338,11 +366,64 @@ class Session implements SessionContract, ArrayAccess, Countable, IteratorAggreg
      */
     public function clear(): bool
     {
+        foreach (array_keys($this->data) as $name) {
+            $this->removed[$name] = true;
+            unset($this->dirty[$name]);
+        }
+
         $this->data = [];
         $this->newFlash = [];
         $this->oldFlash = [];
 
         return $this->driver->clear($this->id);
+    }
+
+    /**
+     * 将内存中的脏变更与删除标记批量落盘
+     *
+     * 变更键通过 setMultiple 一次性写入；删除键逐条删除（驱动层可批量优化）。
+     * 调用后清空脏标记，使后续 get/has 直接走内存或驱动最新状态。
+     */
+    protected function flushData(): void
+    {
+        if ($this->dirty !== []) {
+            $updates = [];
+
+            foreach ($this->dirty as $name => $_) {
+                if (!isset($this->removed[$name])) {
+                    $updates[$name] = $this->data[$name] ?? null;
+                }
+            }
+
+            if ($updates !== []) {
+                $this->driver->setMultiple($this->id, $updates, 0);
+            }
+        }
+
+        if ($this->removed !== []) {
+            foreach (array_keys($this->removed) as $name) {
+                $this->driver->delete($this->id, $name);
+            }
+        }
+
+        $this->dirty = [];
+        $this->removed = [];
+    }
+
+    /**
+     * 是否有未落盘的变更（脏数据）
+     */
+    public function isDirty(): bool
+    {
+        return $this->dirty !== [] || $this->removed !== [];
+    }
+
+    /**
+     * isDirty 的别名
+     */
+    public function hasChanges(): bool
+    {
+        return $this->isDirty();
     }
 
     /**

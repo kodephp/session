@@ -185,4 +185,35 @@ class SessionManagerTest extends TestCase
 
         unset($_COOKIE['KODE_SESSION']);
     }
+
+    public function testGcDelegatesToDriver(): void
+    {
+        $manager = new SessionManager([
+            'default' => 'database',
+            'drivers' => [
+                'database' => [
+                    'dsn' => 'sqlite::memory:',
+                    'table' => 'gc_sessions',
+                    'lock_table' => 'gc_locks',
+                ],
+            ],
+        ]);
+
+        $driver = $manager->getDriver('database');
+        $id = bin2hex(random_bytes(16));
+
+        // 一条有效数据
+        $driver->set($id, 'fresh', 'keep-me');
+
+        // 直接注入一条已过期数据（绕过驱动，模拟历史脏数据）
+        $pdo = (new \ReflectionMethod($driver, 'getPdo'))->invoke($driver);
+        $pdo->prepare('INSERT INTO gc_sessions (id, name, payload, expire) VALUES (?, ?, ?, ?)')
+            ->execute([$id, 'stale', json_encode(['data' => 'x', 'expire' => time() - 100]), time() - 100]);
+
+        $removed = $manager->gc(0);
+
+        $this->assertGreaterThanOrEqual(1, $removed);
+        $this->assertFalse($driver->has($id, 'stale'));
+        $this->assertTrue($driver->has($id, 'fresh'));
+    }
 }

@@ -206,6 +206,16 @@ interface Session extends ArrayAccess, Countable, IteratorAggregate
     public function flush(): void;
 
     /**
+     * 是否存在未落盘的变更（脏数据）
+     */
+    public function isDirty(): bool;
+
+    /**
+     * isDirty 的别名
+     */
+    public function hasChanges(): bool;
+
+    /**
      * 闪存数据（下一次请求后自动删除）；不传 value 时读取
      *
      * @param string $name  键名
