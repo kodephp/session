@@ -4,14 +4,16 @@
 
 ## 特性
 
-- **多驱动支持**：File、Redis、Cookie 等存储驱动
+- **多驱动支持**：File、Redis、Cookie、Array（内存）等存储驱动
 - **分布式会话**：Redis 驱动支持跨机器共享 session
 - **协程安全**：不使用全局 `$_SESSION`，支持 PHP Fiber/协程
 - **请求隔离**：支持配合 kode/context 做请求内会话隔离
 - **进程/并行支持**：支持多进程并发访问，带分布式锁
 - **PSR-7/15 兼容**：完整的中间件支持
-- **闪存数据**：类似 Laravel/ThinkPHP 的 flash 功能
-- **PHP 8.1+**：使用现代 PHP 新特性
+- **闪存数据**：类似 Laravel/ThinkPHP 的 flash 功能（支持 `now`/`old`/`keep`）
+- **安全加固**：会话 ID 强校验（防路径穿越与会话固定）、Cookie 驱动 HMAC 签名防篡改、`regenerate` 数据迁移
+- **异常体系**：分层异常（`SessionException` 及子类）便于精准捕获
+- **PHP 8.3+**：使用枚举、只读属性、`#[\Override]` 等现代特性
 
 ## 安装
 
@@ -125,6 +127,16 @@ $driver = new CookieDriver([
 
 注意：Cookie 有大小限制（通常 4KB），只适合存储少量数据。
 
+### Array 驱动
+
+纯内存存储，适合测试、CLI 与临时会话（进程结束即释放）。
+
+```php
+use Kode\Session\Driver\ArrayDriver;
+
+$driver = new ArrayDriver(); // 可选传入 ['gc_probability' => 100] 强制每次 GC
+```
+
 ## 驱动列表
 
 | 驱动 | 说明 | 使用场景 |
@@ -132,6 +144,7 @@ $driver = new CookieDriver([
 | File | 本地文件存储 | 单机部署、开发环境 |
 | Redis | 分布式存储 | 生产环境、多机器部署 |
 | Cookie | 客户端存储 | 轻量级场景、简单数据 |
+| Array | 内存存储 | 单元测试、CLI、临时会话 |
 
 ## 配置
 
@@ -198,7 +211,7 @@ $session->isStarted();  // 检查是否已启动
 $session->set('key', 'value');  // 设置值
 $session->get('key');            // 获取值
 $session->get('key', 'default'); // 获取值，不存在则返回默认值
-$session->has('key');            // 检查是否存在
+$session->has('key');            // 检查是否存在（值为 null 也算存在）
 $session->delete('key');         // 删除
 $session->clear();               // 清空所有数据
 
@@ -206,16 +219,35 @@ $session->all();                 // 获取所有数据
 $session->pull('key');            // 获取并删除
 ```
 
+#### 进阶操作
+
+```php
+$session->push('list', 'a');     // 向数组键追加值（自动初始化为数组）
+$session->increment('counter');  // 自增 1，返回结果（非数字按 0 处理）
+$session->increment('counter', 5);
+$session->decrement('counter');  // 自减 1
+$session->only(['a', 'b']);      // 仅返回指定键
+$session->except(['a']);         // 排除指定键
+$session->replace(['x' => 1]);   // 整体替换为新数据
+$session->forget('key');         // 删除单个键
+$session->forget(['a', 'b']);    // 批量删除
+$session->flush();               // 清空（clear 的别名）
+```
+
 #### 闪存数据
 
 闪存数据只在当前请求和下一次请求中可用。
 
 ```php
-$session->flash('success', '操作成功');
+$session->flash('success', '操作成功');  // 下一请求可用，之后自动删除
+$session->flash('tip', null);            // 显式 null 也可存储（区分「未设置」）
+$session->now('temp', '仅本请求');        // 仅当前请求可用，下一请求即失效
+$session->old('success');                 // 读取上一次请求的闪存
 
-$session->retainFlash();   // 保留闪存数据（用于重定向场景）
-$session->flushFlash();     // 清空所有闪存数据
-$session->ageFlash();       // 将新闪存转为旧闪存
+$session->keep(['success']);   // 保留指定闪存多存活一轮（重定向场景）
+$session->retainFlash();       // 保留全部闪存多存活一轮
+$session->flushFlash();        // 清空所有闪存数据
+$session->ageFlash();          // 将新闪存转为旧闪存
 ```
 
 #### 错误/成功信息
@@ -356,22 +388,30 @@ class Application
 ```
 src/
 ├── Contract/
-│   ├── Driver.php        # 驱动接口
-│   ├── Session.php       # Session 接口
-│   └── SessionFactory.php # 工厂接口
+│   ├── Driver.php          # 驱动接口
+│   ├── Session.php         # Session 接口
+│   └── SessionFactory.php   # 工厂接口
 ├── Driver/
-│   ├── AbstractDriver.php # 驱动基类
-│   ├── CookieDriver.php   # Cookie 驱动
-│   ├── FileDriver.php     # 文件驱动
-│   └── RedisDriver.php    # Redis 驱动
+│   ├── AbstractDriver.php   # 驱动基类（wrap/unwrap、锁、GC 等公共逻辑）
+│   ├── ArrayDriver.php      # 内存驱动
+│   ├── CookieDriver.php     # Cookie 驱动（HMAC 签名）
+│   ├── FileDriver.php       # 文件驱动
+│   └── RedisDriver.php      # Redis 驱动
+├── Exception/
+│   ├── SessionException.php        # 基类
+│   ├── DriverNotFoundException.php
+│   ├── InvalidSessionIdException.php
+│   └── LockException.php
 ├── Middleware/
 │   └── SessionMiddleware.php # PSR-15 中间件
 ├── Support/
 │   ├── ContextSession.php     # Context 隔离
-│   ├── FiberSessionStorage.php # Fiber 存储
-│   └── ParallelSession.php     # 并行处理
-├── Session.php           # Session 类
-└── SessionManager.php    # 管理器
+│   ├── FiberSessionStorage.php # Fiber 存储（WeakMap）
+│   ├── ParallelSession.php     # 并行处理
+│   └── SessionId.php           # ID 生成与强校验
+├── DriverType.php           # 驱动类型枚举
+├── Session.php             # Session 类
+└── SessionManager.php      # 管理器
 ```
 
 ## 测试
@@ -408,11 +448,19 @@ class CustomDriver implements Driver
     {
     }
 
+    public function setMultiple(string $id, array $values, int $lifetime = 0): bool
+    {
+    }
+
     public function delete(string $id, string $name): bool
     {
     }
 
     public function has(string $id, string $name): bool
+    {
+    }
+
+    public function exists(string $id): bool
     {
     }
 
@@ -425,6 +473,10 @@ class CustomDriver implements Driver
     }
 
     public function remember(string $id, string $name, callable $callback, int $lifetime = 0): mixed
+    {
+    }
+
+    public function migrate(string $fromId, string $toId, bool $delete = true): bool
     {
     }
 
@@ -452,7 +504,7 @@ class CustomDriver implements Driver
     {
     }
 
-    public function acquireLock(string $id, int $timeout = null): bool
+    public function acquireLock(string $id, ?int $timeout = null): bool
     {
     }
 
@@ -462,10 +514,10 @@ class CustomDriver implements Driver
 }
 ```
 
-然后注册到 SessionManager：
+然后注册到 SessionManager（通过 `extend()` 注册的回调返回 `Driver` 实例，已可正确生效）：
 
 ```php
-$manager->extend('custom', function ($config) {
+$manager->extend('custom', function (array $config) {
     return new CustomDriver($config);
 });
 ```

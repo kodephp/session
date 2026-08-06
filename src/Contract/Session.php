@@ -58,7 +58,7 @@ interface Session extends ArrayAccess, Countable, IteratorAggregate
     public function destroy(): bool;
 
     /**
-     * 重新生成 session ID
+     * 重新生成 session ID（迁移旧数据到新 ID，防会话固定）
      *
      * @param bool $delete 是否删除旧 session 数据
      * @return bool
@@ -140,13 +140,105 @@ interface Session extends ArrayAccess, Countable, IteratorAggregate
     public function remember(string $name, callable $callback, int $lifetime = 0): mixed;
 
     /**
-     * 闪存数据（下一次请求后自动删除）
+     * 向数组键追加一个值
      *
      * @param string $name  键名
-     * @param mixed  $value 值（为 null 时表示获取）
+     * @param mixed  $value 值
+     * @return void
+     */
+    public function push(string $name, mixed $value): void;
+
+    /**
+     * 数值自增
+     *
+     * @param string $name 键名
+     * @param int    $step 步长
+     * @return int 自增后的结果
+     */
+    public function increment(string $name, int $step = 1): int;
+
+    /**
+     * 数值自减
+     *
+     * @param string $name 键名
+     * @param int    $step 步长
+     * @return int 自减后的结果
+     */
+    public function decrement(string $name, int $step = 1): int;
+
+    /**
+     * 仅返回指定键的数据
+     *
+     * @param array $keys 键列表
+     * @return array
+     */
+    public function only(array $keys): array;
+
+    /**
+     * 返回除指定键之外的数据
+     *
+     * @param array $keys 要排除的键列表
+     * @return array
+     */
+    public function except(array $keys): array;
+
+    /**
+     * 整体替换为新数据
+     *
+     * @param array<string, mixed> $attributes 新数据
+     * @return void
+     */
+    public function replace(array $attributes): void;
+
+    /**
+     * 删除指定键（支持批量）
+     *
+     * @param string|array $key 键名或键名数组
+     * @return void
+     */
+    public function forget(string|array $key): void;
+
+    /**
+     * 清空所有数据（clear 的别名）
+     *
+     * @return void
+     */
+    public function flush(): void;
+
+    /**
+     * 闪存数据（下一次请求后自动删除）；不传 value 时读取
+     *
+     * @param string $name  键名
+     * @param mixed  $value 值（省略或显式 null 区分：使用 func_num_args 判断）
      * @return mixed
      */
     public function flash(string $name, mixed $value = null): mixed;
+
+    /**
+     * 仅当前请求可用的闪存（下一次请求开始即失效）
+     *
+     * @param string $name  键名
+     * @param mixed  $value 值
+     * @return mixed
+     */
+    public function now(string $name, mixed $value): mixed;
+
+    /**
+     * 读取上一次请求的闪存数据
+     *
+     * @param string $name    键名
+     * @param mixed  $default 默认值
+     * @return mixed
+     */
+    public function old(string $name, mixed $default = null): mixed;
+
+    /**
+     * 保留闪存数据（用于重定向场景，使其多存活一轮）
+     *
+     * @param array $keys 要保留的键列表
+     * @return void
+     */
+    public function keep(array $keys = []): void;
 
     /**
      * 保留闪存数据（用于重定向场景）

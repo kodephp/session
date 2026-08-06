@@ -166,7 +166,9 @@ class FileDriverTest extends TestCase
 
         $this->assertArrayHasKey('name1', $all);
         $this->assertArrayHasKey('name2', $all);
-        $this->assertEquals('value1', $all['name1']['data'] ?? null);
+        // all() 已解包，返回原始值而非包装结构
+        $this->assertEquals('value1', $all['name1']);
+        $this->assertIsString($all['name1']);
     }
 
     public function testSetWithLifetime(): void

@@ -83,8 +83,8 @@ class SessionMiddleware implements MiddlewareInterface
     /**
      * 保存 session 到响应
      *
-     * @param Session         $session  session 实例
-     * @param ResponseInterface $response 响应
+     * @param Session            $session  session 实例
+     * @param ResponseInterface  $response 响应
      * @return ResponseInterface
      */
     protected function saveSession(Session $session, ResponseInterface $response): ResponseInterface
@@ -93,26 +93,37 @@ class SessionMiddleware implements MiddlewareInterface
 
         $cookieName = $session->getName();
         $cookieValue = $session->getId();
-        $cookieLifetime = $this->config['lifetime'] ?? 0;
+        $cookieLifetime = (int) ($this->config['lifetime'] ?? 0);
         $cookiePath = $this->config['path'] ?? '/';
         $cookieDomain = $this->config['domain'] ?? null;
-        $cookieSecure = $this->config['secure'] ?? false;
-        $cookieHttpOnly = $this->config['http_only'] ?? true;
+        $cookieSecure = (bool) ($this->config['secure'] ?? false);
+        $cookieHttpOnly = (bool) ($this->config['http_only'] ?? true);
+        $cookieSameSite = $this->config['samesite'] ?? 'Lax';
 
-        $setCookieHeader = sprintf(
-            '%s=%s; Path=%s%s%s%s; SameSite=Lax',
-            $cookieName,
-            $cookieValue,
-            $cookiePath,
-            $cookieDomain !== null ? '; Domain=' . $cookieDomain : '',
-            $cookieSecure ? '; Secure' : '',
-            $cookieHttpOnly ? '; HttpOnly' : ''
-        );
+        $parts = [
+            $cookieName . '=' . rawurlencode($cookieValue),
+            'Path=' . $cookiePath,
+            'SameSite=' . $cookieSameSite,
+        ];
 
-        if ($cookieLifetime > 0) {
-            $setCookieHeader .= '; Expires=' . gmdate('D, d-M-Y H:i:s T', time() + $cookieLifetime);
+        if ($cookieDomain !== null) {
+            $parts[] = 'Domain=' . $cookieDomain;
         }
 
-        return $response->withHeader('Set-Cookie', $setCookieHeader);
+        if ($cookieSecure) {
+            $parts[] = 'Secure';
+        }
+
+        if ($cookieHttpOnly) {
+            $parts[] = 'HttpOnly';
+        }
+
+        if ($cookieLifetime > 0) {
+            $parts[] = 'Max-Age=' . $cookieLifetime;
+            $parts[] = 'Expires=' . gmdate('D, d-M-Y H:i:s T', time() + $cookieLifetime);
+        }
+
+        // 使用 withAddedHeader，避免覆盖同一响应上其它中间件的 Set-Cookie
+        return $response->withAddedHeader('Set-Cookie', implode('; ', $parts));
     }
 }

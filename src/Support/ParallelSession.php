@@ -149,14 +149,30 @@ class ParallelSession
     }
 
     /**
+     * 检查当前环境是否支持真正的子进程并行
+     */
+    public function supportsFork(): bool
+    {
+        return extension_loaded('pcntl') && function_exists('pcntl_fork')
+            && extension_loaded('sockets') && function_exists('socket_create_pair');
+    }
+
+    /**
      * 在子进程中执行
      *
      * @param callable $callback 回调函数
      * @param array    $data     传递给子进程的数据
      * @return mixed
+     * @throws \RuntimeException
      */
     public function fork(callable $callback, array $data = []): mixed
     {
+        if (!$this->supportsFork()) {
+            throw new \RuntimeException(
+                '并行 fork 需要 pcntl 与 sockets 扩展，请安装并启用 ext-pcntl、ext-sockets'
+            );
+        }
+
         $sessionId = $this->session?->getId() ?? $this->manager->createId();
         $pipe = [];
 

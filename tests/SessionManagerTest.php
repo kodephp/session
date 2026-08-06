@@ -132,4 +132,57 @@ class SessionManagerTest extends TestCase
         $driver3 = $this->manager->getDriver('file');
         $this->assertNotSame($driver1, $driver3);
     }
+
+    public function testArrayDriver(): void
+    {
+        $manager = new SessionManager([
+            'default' => 'array',
+            'drivers' => ['array' => []],
+        ]);
+
+        $session = $manager->make($manager->createId());
+        $session->start();
+        $session->set('foo', 'bar');
+
+        $this->assertEquals('bar', $session->get('foo'));
+    }
+
+    public function testExtendCustomDriver(): void
+    {
+        $manager = new SessionManager([
+            'default' => 'file',
+            'drivers' => ['file' => ['path' => $this->tempPath, 'prefix' => 'test_']],
+        ]);
+
+        $manager->extend('memory', function (array $config) {
+            return new \Kode\Session\Driver\ArrayDriver($config);
+        });
+
+        $driver = $manager->getDriver('memory');
+
+        $this->assertInstanceOf(\Kode\Session\Driver\ArrayDriver::class, $driver);
+
+        $session = $manager->make($manager->createId(), ['driver' => 'memory']);
+        $session->start();
+        $session->set('x', 1);
+
+        $this->assertEquals(1, $session->get('x'));
+    }
+
+    public function testFromRequestValidatesId(): void
+    {
+        $_COOKIE['KODE_SESSION'] = '../../etc/passwd';
+
+        $manager = new SessionManager([
+            'default' => 'file',
+            'drivers' => ['file' => ['path' => $this->tempPath, 'prefix' => 'test_']],
+        ]);
+
+        $session = $manager->fromRequest();
+
+        // 非法 ID 应被替换为合法生成值，而非原字符串
+        $this->assertNotEquals('../../etc/passwd', $session->getId());
+
+        unset($_COOKIE['KODE_SESSION']);
+    }
 }

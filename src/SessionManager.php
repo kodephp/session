@@ -6,9 +6,11 @@ namespace Kode\Session;
 
 use Kode\Session\Contract\Driver;
 use Kode\Session\Contract\SessionFactory;
+use Kode\Session\Driver\ArrayDriver;
 use Kode\Session\Driver\CookieDriver;
 use Kode\Session\Driver\FileDriver;
 use Kode\Session\Driver\RedisDriver;
+use Kode\Session\Support\SessionId;
 
 /**
  * Session 管理器 - 核心入口类
@@ -24,9 +26,16 @@ class SessionManager implements SessionFactory
     protected string $defaultDriver = 'file';
 
     /**
-     * 驱动配置
+     * 驱动配置（内置驱动的默认配置）
      */
     protected array $drivers = [];
+
+    /**
+     * 自定义驱动创建器（通过 extend 注册）
+     *
+     * @var array<string, callable(array<string, mixed>): Driver>
+     */
+    protected array $creators = [];
 
     /**
      * 驱动实例缓存
@@ -72,7 +81,7 @@ class SessionManager implements SessionFactory
     }
 
     /**
-     * 获取驱动实例
+     * 获取驱动实例（按 name + config 缓存，避免不同配置串用同一实例）
      *
      * @param string $name   驱动名称
      * @param array  $config 配置参数
@@ -80,11 +89,13 @@ class SessionManager implements SessionFactory
      */
     public function getDriver(string $name, array $config = []): Driver
     {
-        if (!isset($this->instances[$name])) {
-            $this->instances[$name] = $this->createDriver($name, $config);
+        $key = $name . ':' . md5(serialize($config));
+
+        if (!isset($this->instances[$key])) {
+            $this->instances[$key] = $this->createDriver($name, $config);
         }
 
-        return $this->instances[$name];
+        return $this->instances[$key];
     }
 
     /**
@@ -94,19 +105,29 @@ class SessionManager implements SessionFactory
      * @param array  $config 配置参数
      * @return Driver
      * @throws \InvalidArgumentException
+     * @throws \RuntimeException
      */
     protected function createDriver(string $name, array $config = []): Driver
     {
-        $driverConfig = $this->drivers[$name] ?? [];
+        // 自定义驱动：通过 extend() 注册的创建器优先
+        if (isset($this->creators[$name])) {
+            $driverConfig = array_merge($this->drivers[$name] ?? [], $config);
+            $driver = ($this->creators[$name])($driverConfig);
 
-        if (isset($config['driver'])) {
-            $driverConfig = array_merge($driverConfig, $config);
+            if (!$driver instanceof Driver) {
+                throw new \RuntimeException("驱动 [{$name}] 的创建回调必须返回 Driver 实例");
+            }
+
+            return $driver;
         }
+
+        $driverConfig = array_merge($this->drivers[$name] ?? [], $config);
 
         return match ($name) {
             'file' => new FileDriver($driverConfig),
             'redis' => new RedisDriver($driverConfig),
             'cookie' => new CookieDriver($driverConfig),
+            'array' => new ArrayDriver($driverConfig),
             default => throw new \InvalidArgumentException("不支持的驱动: {$name}"),
         };
     }
@@ -127,7 +148,7 @@ class SessionManager implements SessionFactory
     }
 
     /**
-     * 从请求获取 session ID
+     * 从请求获取 session ID（校验合法性，非法则生成新 ID 防止会话固定 / 路径穿越）
      *
      * @param array $config 配置参数
      * @return string
@@ -137,23 +158,16 @@ class SessionManager implements SessionFactory
         $name = $config['name'] ?? 'KODE_SESSION';
         $idParam = $config['id_param'] ?? 'session_id';
 
-        if (!empty($_COOKIE[$name])) {
-            return $_COOKIE[$name];
+        $candidate = $_COOKIE[$name]
+            ?? $_GET[$idParam]
+            ?? $_POST[$idParam]
+            ?? ($_SERVER['HTTP_X_SESSION_ID'] ?? null);
+
+        if (is_string($candidate) && SessionId::isValid($candidate)) {
+            return $candidate;
         }
 
-        if (!empty($_GET[$idParam])) {
-            return $_GET[$idParam];
-        }
-
-        if (!empty($_POST[$idParam])) {
-            return $_POST[$idParam];
-        }
-
-        if (!empty($_SERVER['HTTP_X_SESSION_ID'])) {
-            return $_SERVER['HTTP_X_SESSION_ID'];
-        }
-
-        return bin2hex(random_bytes(16));
+        return SessionId::generate();
     }
 
     /**
@@ -238,15 +252,15 @@ class SessionManager implements SessionFactory
     }
 
     /**
-     * 注册驱动
+     * 注册自定义驱动
      *
      * @param string   $name     驱动名称
-     * @param callable $callback 驱动创建回调
+     * @param callable $callback 驱动创建回调，接收配置数组，必须返回 Driver 实例
      * @return void
      */
     public function extend(string $name, callable $callback): void
     {
-        $this->drivers[$name] = $callback;
+        $this->creators[$name] = $callback;
     }
 
     /**
