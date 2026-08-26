@@ -260,9 +260,11 @@ $session->save(); // 脏键批量写入、删除键逐条删除，仅一次落�
 $middleware = new SessionMiddleware($manager, [
     'name' => 'KODE_SESSION',
     'lifetime' => 3600,
-    'gc_probability' => 1,   // 触发分子（默认 1）
-    'gc_divisor' => 100,     // 触发分母（默认 100），即 ~1% 请求触发
-    'gc_lifetime' => 3600,   // 回收时的最大生命周期（默认取 lifetime）
+    'path' => '/',
+    'secure' => false,
+    'http_only' => true,
+    'gc_probability' => 10,   // 触发分子（默认 10，即 ~10% 请求触发 GC）
+    'gc_divisor' => 100,      // 触发分母（默认 100）
 ]);
 ```
 

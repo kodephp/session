@@ -85,11 +85,12 @@ class SessionMiddleware implements MiddlewareInterface
     /**
      * 按概率触发垃圾回收，避免每请求都扫描过期数据
      *
-     * 配置项：gc_probability（默认 1）、gc_divisor（默认 100）、gc_lifetime（默认取 lifetime）
+     * 配置项：gc_probability（默认 10）、gc_divisor（默认 100）、gc_lifetime（默认取 lifetime）
+     * 调整默认概率以适应高流量部署：默认 10%（而非 1%），可通过配置自定义
      */
     protected function maybeGarbageCollect(): void
     {
-        $probability = (int) ($this->config['gc_probability'] ?? 1);
+        $probability = (int) ($this->config['gc_probability'] ?? 10);
         $divisor = (int) ($this->config['gc_divisor'] ?? 100);
 
         if ($probability <= 0 || $divisor <= 0 || $probability > $divisor) {
