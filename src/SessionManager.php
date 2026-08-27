@@ -54,6 +54,17 @@ class SessionManager implements SessionFactory
     protected array $config;
 
     /**
+     * GC 配置（全局默认值，可被中间件配置覆盖）
+     *
+     * @var array{probability: int, divisor: int, lifetime: int}
+     */
+    protected array $gcConfig = [
+        'gc_probability' => 10,
+        'gc_divisor'     => 100,
+        'gc_lifetime'    => 0,
+    ];
+
+    /**
      * 构造函数
      *
      * @param array $config 配置数组
@@ -63,6 +74,39 @@ class SessionManager implements SessionFactory
         $this->config = $config;
         $this->defaultDriver = $config['default'] ?? 'file';
         $this->drivers = $config['drivers'] ?? [];
+
+        $this->gcConfig = [
+            'gc_probability' => (int) ($config['gc_probability'] ?? 10),
+            'gc_divisor'     => (int) ($config['gc_divisor'] ?? 100),
+            'gc_lifetime'    => (int) ($config['gc_lifetime'] ?? 0),
+        ];
+    }
+
+    /**
+     * 获取 GC 配置
+     *
+     * @return array
+     */
+    public function getGcConfig(): array
+    {
+        return $this->gcConfig;
+    }
+
+    /**
+     * 设置 GC 配置
+     *
+     * @param int $probability 触发概率分子
+     * @param int $divisor     触发概率分母
+     * @param int $lifetime    最大生命周期（0 表示使用 session lifetime）
+     * @return void
+     */
+    public function setGcConfig(int $probability, int $divisor = 100, int $lifetime = 0): void
+    {
+        $this->gcConfig = [
+            'gc_probability' => max(0, $probability),
+            'gc_divisor'     => max(1, $divisor),
+            'gc_lifetime'    => max(0, $lifetime),
+        ];
     }
 
     /**

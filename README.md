@@ -268,6 +268,23 @@ $middleware = new SessionMiddleware($manager, [
 ]);
 ```
 
+也可在 **SessionManager 全局配置** 设置 GC 默认值（中间件配置优先级更高）：
+
+```php
+$manager = new SessionManager([
+    'default' => 'file',
+    'gc_probability' => 10,   // 全局默认触发分子
+    'gc_divisor' => 100,      // 全局默认触发分母
+    'gc_lifetime' => 3600,    // 全局默认 GC 生命周期（0 表示取 session lifetime）
+    'drivers' => [...],
+]);
+```
+
+或运行时动态调整：
+```php
+$manager->setGcConfig(10, 100, 3600);  // probability, divisor, lifetime
+```
+
 也可手动在长周期任务中调用 `$manager->gc($maxLifetime, $config)` 强制回收。
 
 ## 驱动列表
