@@ -137,6 +137,7 @@ final class Encrypter
             return null;
         }
 
+        // 载荷经 GCM 认证标签校验，伪造字节串到不了这里，反序列化对象仅可能来自持有密钥的本方
         $value = @unserialize($plaintext, ['allowed_classes' => true]);
 
         return $value !== false ? $value : null;

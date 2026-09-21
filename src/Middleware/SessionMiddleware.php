@@ -71,7 +71,7 @@ class SessionMiddleware implements MiddlewareInterface
             $this->maybeGarbageCollect();
 
             if ($session->isStarted()) {
-                $this->saveSession($session, $response);
+                $response = $this->saveSession($session, $response, $request);
             }
 
             return $response;
@@ -113,9 +113,10 @@ class SessionMiddleware implements MiddlewareInterface
      *
      * @param Session            $session  session 实例
      * @param ResponseInterface  $response 响应
+     * @param ServerRequestInterface|null $request 请求（用于未显式配置 secure 时按 HTTPS 自动判定）
      * @return ResponseInterface
      */
-    protected function saveSession(Session $session, ResponseInterface $response): ResponseInterface
+    protected function saveSession(Session $session, ResponseInterface $response, ?ServerRequestInterface $request = null): ResponseInterface
     {
         $session->save();
 
@@ -124,7 +125,7 @@ class SessionMiddleware implements MiddlewareInterface
         $cookieLifetime = (int) ($this->config['lifetime'] ?? 0);
         $cookiePath = $this->config['path'] ?? '/';
         $cookieDomain = $this->config['domain'] ?? null;
-        $cookieSecure = (bool) ($this->config['secure'] ?? false);
+        $cookieSecure = (bool) ($this->config['secure'] ?? ($request !== null && $request->getUri()->getScheme() === 'https'));
         $cookieHttpOnly = (bool) ($this->config['http_only'] ?? true);
         $cookieSameSite = $this->config['samesite'] ?? 'Lax';
 

@@ -218,6 +218,8 @@ class Session implements SessionContract, ArrayAccess, Countable, IteratorAggreg
         $this->errors = [];
         $this->successes = [];
         $this->csrfToken = null;
+        // 必须先置 false：否则中间件在请求收尾仍会 save()，把刚销毁的会话重新落盘
+        $this->started = false;
 
         return $this->driver->destroy($this->id);
     }
@@ -227,9 +229,9 @@ class Session implements SessionContract, ArrayAccess, Countable, IteratorAggreg
      *
      * 先把缓存中未落盘的变更刷写到旧 ID，确保 migrate 不会丢失本请求的写入。
      *
-     * @param bool $delete 是否删除旧 session 数据
+     * @param bool $delete 是否删除旧 session 数据（默认删除，防会话固定残留）
      */
-    public function regenerate(bool $delete = false): bool
+    public function regenerate(bool $delete = true): bool
     {
         $oldId = $this->id;
         $this->flushData();

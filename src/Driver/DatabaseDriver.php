@@ -335,6 +335,13 @@ class DatabaseDriver extends AbstractDriver
             time()
         ));
 
+        // 锁表兜底清理：进程崩溃残留的锁行会永久堆积，过期即可删
+        $this->getPdo()->exec(sprintf(
+            'DELETE FROM %s WHERE expire < %d',
+            $this->quoteIdentifier($this->lockTable),
+            time()
+        ));
+
         return (int) $count;
     }
 
@@ -424,6 +431,22 @@ class DatabaseDriver extends AbstractDriver
         $token = bin2hex(random_bytes(16));
         $start = time();
 
+        // 同进程重入：持锁者续期而非重新抢占
+        if (isset($this->lockTokens[$id])) {
+            $stmt = $this->getPdo()->prepare(sprintf(
+                'UPDATE %s SET expire = ? WHERE id = ? AND token = ?',
+                $this->quoteIdentifier($this->lockTable)
+            ));
+            $stmt->execute([time() + $timeout, $id, $this->lockTokens[$id]]);
+
+            if ($stmt->rowCount() === 1) {
+                return true;
+            }
+
+            // 锁已被他人接管（token 不再匹配），丢弃本地持有标记走正常抢占
+            unset($this->lockTokens[$id]);
+        }
+
         while (true) {
             if ($this->tryClaimLock($id, $token, time() + $timeout)) {
                 $this->lockTokens[$id] = $token;
@@ -452,11 +475,16 @@ class DatabaseDriver extends AbstractDriver
 
             return $stmt->execute([$id, $token, $expire]);
         } catch (PDOException $e) {
-            // 唯一冲突：锁已被持有，尝试认领已过期者
-            if ($e->getCode() === '23000') {
+            // 唯一冲突（MySQL 23000 / PG 23505）：锁已被持有，尝试认领已过期者
+            if (str_starts_with((string) $e->getCode(), '23')) {
                 $stmt = $pdo->prepare("UPDATE {$table} SET token = ?, expire = ? WHERE id = ? AND expire < ?");
 
-                return $stmt->execute([$token, $expire, $id, time()]);
+                if (!$stmt->execute([$token, $expire, $id, time()])) {
+                    return false;
+                }
+
+                // UPDATE 影响 0 行表示锁仍被他人有效持有，不能误判为抢锁成功
+                return $stmt->rowCount() === 1;
             }
 
             throw $e;

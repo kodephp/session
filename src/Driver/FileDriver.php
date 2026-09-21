@@ -25,11 +25,6 @@ class FileDriver extends AbstractDriver
     private const string GUARD = '<?php exit; ?>';
 
     /**
-     * 旧版本（<= 2.x）文件头
-     */
-    private const string LEGACY_GUARD = '<?php return ';
-
-    /**
      * 锁目录
      */
     protected string $lockPath;
@@ -491,7 +486,8 @@ class FileDriver extends AbstractDriver
         }
 
         try {
-            $tmp = $file . '.' . getmypid() . '.tmp';
+            // 随机后缀避免同 PID 并发（协程/多请求交错）时互相踩踏临时文件
+            $tmp = $file . '.' . bin2hex(random_bytes(8)) . '.tmp';
 
             if (@file_put_contents($tmp, $this->encode($payload), LOCK_EX) === false) {
                 return false;
@@ -546,32 +542,9 @@ class FileDriver extends AbstractDriver
             return is_array($data) ? $data : [];
         }
 
-        if (str_starts_with($contents, self::LEGACY_GUARD)) {
-            return $this->decodeLegacy($contents);
-        }
-
+        // 2.x 旧格式（`<?php return [...];`）曾靠 eval 解析，存在代码执行风险；
+        // 不再兼容读取，视作无效负载（写入会以新格式覆盖）
         return [];
-    }
-
-    /**
-     * 解析 2.x 旧格式（`<?php return [...];`）
-     *
-     * @param string $contents 文件内容
-     * @return array<string, mixed>
-     */
-    protected function decodeLegacy(string $contents): array
-    {
-        $expression = trim(substr($contents, strlen('<?php return')));
-        $expression = rtrim($expression, ";\n\r\t ");
-
-        try {
-            /** @var mixed $data */
-            $data = @eval('return ' . $expression . ';');
-        } catch (\Throwable) {
-            return [];
-        }
-
-        return is_array($data) ? $data : [];
     }
 
     /**

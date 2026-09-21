@@ -251,6 +251,8 @@ $session->save(); // 脏键批量写入、删除键逐条删除，仅一次落�
 
 - `isDirty()` / `hasChanges()` 反映是否存在待落盘的变更。
 - `regenerate()`、`destroy()`、`close()` 会先刷写未落盘的变更，避免丢失本请求写入。
+- `regenerate()` 默认删除旧 ID 数据（防会话固定残留）；如需保留旧数据传 `regenerate(false)`。
+- `destroy()` 后会话即视为未启动，中间件收尾不会再把它落盘。
 
 ### 概率化垃圾回收（GC）
 

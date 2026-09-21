@@ -60,10 +60,10 @@ interface Session extends ArrayAccess, Countable, IteratorAggregate
     /**
      * 重新生成 session ID（迁移旧数据到新 ID，防会话固定）
      *
-     * @param bool $delete 是否删除旧 session 数据
+     * @param bool $delete 是否删除旧 session 数据（默认删除，防会话固定残留）
      * @return bool
      */
-    public function regenerate(bool $delete = false): bool;
+    public function regenerate(bool $delete = true): bool;
 
     /**
      * 保存 session 数据并关闭

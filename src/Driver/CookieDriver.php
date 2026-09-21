@@ -102,7 +102,17 @@ class CookieDriver extends AbstractDriver
 
         if ($this->signing) {
             $sig = $payload['sig'] ?? null;
-            $expected = $this->sign($payload['data'], $payload['expire'] ?? 0, $payload['id'] ?? '');
+            $expire = $payload['expire'] ?? 0;
+            $id = $payload['id'] ?? '';
+
+            // 字段类型不符即为伪造载荷，直接丢弃（避免 strict_types 下 TypeError 变 500）
+            if (!is_int($expire) || !is_string($id)) {
+                $this->data = [];
+
+                return;
+            }
+
+            $expected = $this->sign($payload['data'], $expire, $id);
 
             if (!is_string($sig) || !hash_equals($expected, $sig)) {
                 // 签名校验失败：视为被篡改，丢弃整段会话
@@ -128,7 +138,7 @@ class CookieDriver extends AbstractDriver
      */
     protected function sign(array $data, int $expire, string $id): string
     {
-        $material = json_encode([$id, $expire, $data], JSON_THROW_ON_ERROR);
+        $material = json_encode([$id, $expire, $data], JSON_THROW_ON_ERROR | JSON_INVALID_UTF8_SUBSTITUTE);
 
         return hash_hmac('sha256', $material, $this->secret);
     }
@@ -175,7 +185,7 @@ class CookieDriver extends AbstractDriver
             $data['sig'] = $this->sign($data['data'], $expire, $id);
         }
 
-        return base64_encode(json_encode($data, JSON_THROW_ON_ERROR));
+        return base64_encode(json_encode($data, JSON_THROW_ON_ERROR | JSON_INVALID_UTF8_SUBSTITUTE));
     }
 
     /**
@@ -291,13 +301,17 @@ class CookieDriver extends AbstractDriver
     }
 
     /**
-     * 开启 session（Cookie 驱动无需锁）
+     * 开启 session：常驻进程内驱动实例跨请求复用，必须重置并重新装载本次请求的 Cookie
      *
      * @param string $id Session ID
      */
     #[\Override]
     public function open(string $id): bool
     {
+        $this->loaded = false;
+        $this->data = [];
+        $this->load();
+
         return true;
     }
 

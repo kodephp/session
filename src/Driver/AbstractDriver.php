@@ -343,7 +343,8 @@ abstract class AbstractDriver implements Driver
         if (str_starts_with($payload, self::PREFIX_RAW)) {
             $raw = base64_decode(substr($payload, strlen(self::PREFIX_RAW)), true);
 
-            return $raw === false ? null : @unserialize($raw, ['allowed_classes' => true]);
+            // allowed_classes=false：Cookie 驱动下该字节串可被客户端控制，禁止对象注入
+            return $raw === false ? null : @unserialize($raw, ['allowed_classes' => false]);
         }
 
         if (!str_starts_with($payload, self::PREFIX_COMPRESSED)) {
@@ -362,7 +363,7 @@ abstract class AbstractDriver implements Driver
             return null;
         }
 
-        $value = @unserialize($uncompressed, ['allowed_classes' => true]);
+        $value = @unserialize($uncompressed, ['allowed_classes' => false]);
 
         return $value !== false ? $value : null;
     }
