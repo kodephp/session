@@ -323,7 +323,7 @@ interface Session extends ArrayAccess, Countable, IteratorAggregate
      * @param string|null $token 可选的新 token
      * @return string
      */
-    public function token(string $token = null): string;
+    public function token(?string $token = null): string;
 
     /**
      * 验证 CSRF token
@@ -363,7 +363,7 @@ interface Session extends ArrayAccess, Countable, IteratorAggregate
      * @param string|null $key 键名（为空时检查整体）
      * @return bool
      */
-    public function hasError(string $key = null): bool;
+    public function hasError(?string $key = null): bool;
 
     /**
      * 设置成功信息
@@ -395,7 +395,7 @@ interface Session extends ArrayAccess, Countable, IteratorAggregate
      * @param string|null $key 键名（为空时检查整体）
      * @return bool
      */
-    public function hasSuccess(string $key = null): bool;
+    public function hasSuccess(?string $key = null): bool;
 
     /**
      * 获取原始数据（不包含系统键）

@@ -800,7 +800,7 @@ class Session implements SessionContract, ArrayAccess, Countable, IteratorAggreg
      *
      * @param string|null $token 可选的新 token
      */
-    public function token(string $token = null): string
+    public function token(?string $token = null): string
     {
         if ($token !== null) {
             $this->csrfToken = $token;
@@ -870,7 +870,7 @@ class Session implements SessionContract, ArrayAccess, Countable, IteratorAggreg
      *
      * @param string|null $key 键名（为空时检查整体）
      */
-    public function hasError(string $key = null): bool
+    public function hasError(?string $key = null): bool
     {
         if ($key === null) {
             return $this->errors !== [];
@@ -918,7 +918,7 @@ class Session implements SessionContract, ArrayAccess, Countable, IteratorAggreg
      *
      * @param string|null $key 键名（为空时检查整体）
      */
-    public function hasSuccess(string $key = null): bool
+    public function hasSuccess(?string $key = null): bool
     {
         if ($key === null) {
             return $this->successes !== [];

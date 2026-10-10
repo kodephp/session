@@ -276,7 +276,7 @@ class SessionManager implements SessionFactory
      * @param mixed       $default 默认值
      * @return mixed
      */
-    public function getConfig(string $key = null, mixed $default = null): mixed
+    public function getConfig(?string $key = null, mixed $default = null): mixed
     {
         if ($key === null) {
             return $this->config;

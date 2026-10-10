@@ -60,7 +60,7 @@ class ParallelSession
      * @param string|null $id Session ID
      * @return Session
      */
-    public function create(string $id = null): Session
+    public function create(?string $id = null): Session
     {
         $sessionId = $id ?? $this->manager->createId();
         $this->session = $this->manager->make($sessionId, $this->config);
@@ -90,7 +90,7 @@ class ParallelSession
      * @return mixed
      * @throws \RuntimeException
      */
-    public function withLock(callable $callback, int $timeout = null): mixed
+    public function withLock(callable $callback, ?int $timeout = null): mixed
     {
         if ($this->session === null) {
             throw new \RuntimeException('Session 未创建');

@@ -19,7 +19,7 @@
 - **闪存数据**：类似 Laravel/ThinkPHP 的 flash 功能（支持 `now`/`old`/`keep`）
 - **安全加固**：会话 ID 强校验（防路径穿越与会话固定）、Cookie 驱动 HMAC 签名防篡改、`regenerate` 数据迁移
 - **异常体系**：分层异常（`SessionException` 及子类）便于精准捕获
-- **PHP 8.3+**：使用枚举、只读属性、`#[\Override]` 等现代特性
+- **PHP 8.4+**：使用枚举、只读属性、`#[\Override]` 等现代特性
 
 ## 安装
 
