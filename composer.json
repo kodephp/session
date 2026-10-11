@@ -1,6 +1,6 @@
 {
     "name": "kode/session",
-    "version": "4.0.2",
+    "version": "4.0.3",
     "description": "kode/session - 分布式会话管理器，支持文件、Redis、Cookie、内存等驱动",
     "license": "Apache-2.0",
     "type": "library",
@@ -37,10 +37,15 @@
         "predis/predis": "^2.0"
     },
     "suggest": {
+        "ext-openssl": "OpenSSL 扩展 - 用于 Session 载荷加密",
         "ext-redis": "使用 phpredis 扩展获得更好的 Redis 驱动性能",
         "predis/predis": "无 phpredis 扩展时作为 Redis 客户端替代方案",
         "ext-pcntl": "ParallelSession::fork() 多进程支持",
         "ext-sockets": "ParallelSession::fork() 父子进程数据回传"
+    },
+    "support": {
+        "issues": "https://github.com/kodephp/session/issues",
+        "source": "https://github.com/kodephp/session"
     },
     "autoload": {
         "psr-4": {
