@@ -54,6 +54,7 @@ class SessionMiddleware implements MiddlewareInterface
      * @param RequestHandlerInterface $handler 处理器
      * @return ResponseInterface
      */
+    #[\Override]
     public function process(ServerRequestInterface $request, RequestHandlerInterface $handler): ResponseInterface
     {
         $session = $this->manager->fromRequest($this->config);

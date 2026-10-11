@@ -129,6 +129,7 @@ class Session implements SessionContract, ArrayAccess, Countable, IteratorAggreg
     /**
      * 获取 session ID
      */
+    #[\Override]
     public function getId(): string
     {
         return $this->id;
@@ -137,6 +138,7 @@ class Session implements SessionContract, ArrayAccess, Countable, IteratorAggreg
     /**
      * 获取 session 名称
      */
+    #[\Override]
     public function getName(): string
     {
         return $this->name;
@@ -145,6 +147,7 @@ class Session implements SessionContract, ArrayAccess, Countable, IteratorAggreg
     /**
      * 检查 session 是否已启动
      */
+    #[\Override]
     public function isStarted(): bool
     {
         return $this->started;
@@ -153,6 +156,7 @@ class Session implements SessionContract, ArrayAccess, Countable, IteratorAggreg
     /**
      * 启动 session
      */
+    #[\Override]
     public function start(): bool
     {
         if ($this->started) {
@@ -191,6 +195,7 @@ class Session implements SessionContract, ArrayAccess, Countable, IteratorAggreg
     /**
      * 关闭 session（兜底落盘未保存的变更，再释放锁）
      */
+    #[\Override]
     public function close(): bool
     {
         if (!$this->started) {
@@ -208,6 +213,7 @@ class Session implements SessionContract, ArrayAccess, Countable, IteratorAggreg
     /**
      * 销毁 session
      */
+    #[\Override]
     public function destroy(): bool
     {
         $this->dirty = [];
@@ -231,6 +237,7 @@ class Session implements SessionContract, ArrayAccess, Countable, IteratorAggreg
      *
      * @param bool $delete 是否删除旧 session 数据（默认删除，防会话固定残留）
      */
+    #[\Override]
     public function regenerate(bool $delete = true): bool
     {
         $oldId = $this->id;
@@ -249,6 +256,7 @@ class Session implements SessionContract, ArrayAccess, Countable, IteratorAggreg
      * 采用延迟写盘：set/delete 仅更新内存与脏标记，真正落盘在此一次性批量完成，
      * 避免每个 set 都触发一次驱动 I/O（文件重写 / Redis 往返）。
      */
+    #[\Override]
     public function save(): void
     {
         if (!$this->started) {
@@ -266,6 +274,7 @@ class Session implements SessionContract, ArrayAccess, Countable, IteratorAggreg
     /**
      * 获取所有数据（不含系统键与闪存键）
      */
+    #[\Override]
     public function all(): array
     {
         return $this->raw();
@@ -277,6 +286,7 @@ class Session implements SessionContract, ArrayAccess, Countable, IteratorAggreg
      * @param string $name    键名
      * @param mixed  $default 默认值
      */
+    #[\Override]
     public function get(string $name, mixed $default = null): mixed
     {
         if (array_key_exists($name, $this->data)) {
@@ -316,6 +326,7 @@ class Session implements SessionContract, ArrayAccess, Countable, IteratorAggreg
      * @param string $name  键名
      * @param mixed  $value 值
      */
+    #[\Override]
     public function set(string $name, mixed $value): void
     {
         $this->data[$name] = $value;
@@ -331,6 +342,7 @@ class Session implements SessionContract, ArrayAccess, Countable, IteratorAggreg
      * @param string $name    键名
      * @param int    $default 默认值
      */
+    #[\Override]
     public function getInt(string $name, int $default = 0): int
     {
         $value = $this->get($name);
@@ -358,6 +370,7 @@ class Session implements SessionContract, ArrayAccess, Countable, IteratorAggreg
      * @param string $name    键名
      * @param float  $default 默认值
      */
+    #[\Override]
     public function getFloat(string $name, float $default = 0.0): float
     {
         $value = $this->get($name);
@@ -385,6 +398,7 @@ class Session implements SessionContract, ArrayAccess, Countable, IteratorAggreg
      * @param string $name   键名
      * @param bool   $default 默认值
      */
+    #[\Override]
     public function getBool(string $name, bool $default = false): bool
     {
         $value = $this->get($name);
@@ -412,6 +426,7 @@ class Session implements SessionContract, ArrayAccess, Countable, IteratorAggreg
      * @param string $name    键名
      * @param string $default 默认值
      */
+    #[\Override]
     public function getString(string $name, string $default = ''): string
     {
         $value = $this->get($name);
@@ -448,6 +463,7 @@ class Session implements SessionContract, ArrayAccess, Countable, IteratorAggreg
      * @param array  $default 默认值
      * @return array<string, mixed>
      */
+    #[\Override]
     public function getArray(string $name, array $default = []): array
     {
         $value = $this->get($name);
@@ -460,6 +476,7 @@ class Session implements SessionContract, ArrayAccess, Countable, IteratorAggreg
      *
      * @param string $name 键名
      */
+    #[\Override]
     public function delete(string $name): bool
     {
         unset($this->data[$name]);
@@ -474,6 +491,7 @@ class Session implements SessionContract, ArrayAccess, Countable, IteratorAggreg
      *
      * @param string $name 键名
      */
+    #[\Override]
     public function has(string $name): bool
     {
         if (array_key_exists($name, $this->data)) {
@@ -498,6 +516,7 @@ class Session implements SessionContract, ArrayAccess, Countable, IteratorAggreg
     /**
      * 清空所有数据（含闪存）
      */
+    #[\Override]
     public function clear(): bool
     {
         foreach (array_keys($this->data) as $name) {
@@ -547,6 +566,7 @@ class Session implements SessionContract, ArrayAccess, Countable, IteratorAggreg
     /**
      * 是否有未落盘的变更（脏数据）
      */
+    #[\Override]
     public function isDirty(): bool
     {
         return $this->dirty !== [] || $this->removed !== [];
@@ -555,6 +575,7 @@ class Session implements SessionContract, ArrayAccess, Countable, IteratorAggreg
     /**
      * isDirty 的别名
      */
+    #[\Override]
     public function hasChanges(): bool
     {
         return $this->isDirty();
@@ -566,6 +587,7 @@ class Session implements SessionContract, ArrayAccess, Countable, IteratorAggreg
      * @param string $name    键名
      * @param mixed  $default 默认值
      */
+    #[\Override]
     public function pull(string $name, mixed $default = null): mixed
     {
         $value = $this->get($name, $default);
@@ -581,6 +603,7 @@ class Session implements SessionContract, ArrayAccess, Countable, IteratorAggreg
      * @param callable $callback  回调函数
      * @param int      $lifetime 生命周期
      */
+    #[\Override]
     public function remember(string $name, callable $callback, int $lifetime = 0): mixed
     {
         if ($this->has($name)) {
@@ -599,6 +622,7 @@ class Session implements SessionContract, ArrayAccess, Countable, IteratorAggreg
      * @param string $name  键名
      * @param mixed  $value 值
      */
+    #[\Override]
     public function push(string $name, mixed $value): void
     {
         $array = $this->get($name, []);
@@ -618,6 +642,7 @@ class Session implements SessionContract, ArrayAccess, Countable, IteratorAggreg
      * @param string $name 键名
      * @param int    $step 步长
      */
+    #[\Override]
     public function increment(string $name, int $step = 1): int
     {
         $value = (int) $this->get($name, 0) + $step;
@@ -632,6 +657,7 @@ class Session implements SessionContract, ArrayAccess, Countable, IteratorAggreg
      * @param string $name 键名
      * @param int    $step 步长
      */
+    #[\Override]
     public function decrement(string $name, int $step = 1): int
     {
         $value = (int) $this->get($name, 0) - $step;
@@ -646,6 +672,7 @@ class Session implements SessionContract, ArrayAccess, Countable, IteratorAggreg
      * @param array $keys 键列表
      * @return array<string, mixed>
      */
+    #[\Override]
     public function only(array $keys): array
     {
         $result = [];
@@ -663,6 +690,7 @@ class Session implements SessionContract, ArrayAccess, Countable, IteratorAggreg
      * @param array $keys 要排除的键列表
      * @return array<string, mixed>
      */
+    #[\Override]
     public function except(array $keys): array
     {
         return array_diff_key($this->raw(), array_flip($keys));
@@ -673,6 +701,7 @@ class Session implements SessionContract, ArrayAccess, Countable, IteratorAggreg
      *
      * @param array<string, mixed> $attributes 新数据
      */
+    #[\Override]
     public function replace(array $attributes): void
     {
         $this->clear();
@@ -687,6 +716,7 @@ class Session implements SessionContract, ArrayAccess, Countable, IteratorAggreg
      *
      * @param string|array $key 键名或键名数组
      */
+    #[\Override]
     public function forget(string|array $key): void
     {
         $keys = is_array($key) ? $key : [$key];
@@ -699,6 +729,7 @@ class Session implements SessionContract, ArrayAccess, Countable, IteratorAggreg
     /**
      * 清空所有数据（clear 的别名）
      */
+    #[\Override]
     public function flush(): void
     {
         $this->clear();
@@ -711,6 +742,7 @@ class Session implements SessionContract, ArrayAccess, Countable, IteratorAggreg
      * @param string $name  键名
      * @param mixed  $value 值
      */
+    #[\Override]
     public function flash(string $name, mixed $value = null): mixed
     {
         if (func_num_args() < 2) {
@@ -728,6 +760,7 @@ class Session implements SessionContract, ArrayAccess, Countable, IteratorAggreg
      * @param string $name  键名
      * @param mixed  $value 值
      */
+    #[\Override]
     public function now(string $name, mixed $value): mixed
     {
         $this->oldFlash[$name] = $value;
@@ -741,6 +774,7 @@ class Session implements SessionContract, ArrayAccess, Countable, IteratorAggreg
      * @param string $name    键名
      * @param mixed  $default 默认值
      */
+    #[\Override]
     public function old(string $name, mixed $default = null): mixed
     {
         return $this->oldFlash[$name] ?? $default;
@@ -751,6 +785,7 @@ class Session implements SessionContract, ArrayAccess, Countable, IteratorAggreg
      *
      * @param array $keys 要保留的键列表
      */
+    #[\Override]
     public function keep(array $keys = []): void
     {
         if ($keys === []) {
@@ -771,6 +806,7 @@ class Session implements SessionContract, ArrayAccess, Countable, IteratorAggreg
      *
      * @param array $keys 要保留的键列表
      */
+    #[\Override]
     public function retainFlash(array $keys = []): void
     {
         $this->keep($keys);
@@ -779,6 +815,7 @@ class Session implements SessionContract, ArrayAccess, Countable, IteratorAggreg
     /**
      * 清空当前请求的闪存数据
      */
+    #[\Override]
     public function flushFlash(): void
     {
         $this->oldFlash = [];
@@ -788,6 +825,7 @@ class Session implements SessionContract, ArrayAccess, Countable, IteratorAggreg
     /**
      * 记录之前请求的闪存数据（每轮请求开始时调用）
      */
+    #[\Override]
     public function ageFlash(): void
     {
         // 上一轮旧闪存已过期：清空
@@ -800,6 +838,7 @@ class Session implements SessionContract, ArrayAccess, Countable, IteratorAggreg
      *
      * @param string|null $token 可选的新 token
      */
+    #[\Override]
     public function token(?string $token = null): string
     {
         if ($token !== null) {
@@ -826,6 +865,7 @@ class Session implements SessionContract, ArrayAccess, Countable, IteratorAggreg
      *
      * @param string $token 待验证的 token
      */
+    #[\Override]
     public function verifyCsrfToken(string $token): bool
     {
         return hash_equals($this->token(), $token);
@@ -838,6 +878,7 @@ class Session implements SessionContract, ArrayAccess, Countable, IteratorAggreg
      * @param string $message 错误信息
      * @return self
      */
+    #[\Override]
     public function setError(string $key, string $message): self
     {
         $this->errors[$key] = $message;
@@ -850,6 +891,7 @@ class Session implements SessionContract, ArrayAccess, Countable, IteratorAggreg
      *
      * @param string $key 键名
      */
+    #[\Override]
     public function getError(string $key): ?string
     {
         return $this->errors[$key] ?? null;
@@ -860,6 +902,7 @@ class Session implements SessionContract, ArrayAccess, Countable, IteratorAggreg
      *
      * @return array<string, string>
      */
+    #[\Override]
     public function getErrors(): array
     {
         return $this->errors;
@@ -870,6 +913,7 @@ class Session implements SessionContract, ArrayAccess, Countable, IteratorAggreg
      *
      * @param string|null $key 键名（为空时检查整体）
      */
+    #[\Override]
     public function hasError(?string $key = null): bool
     {
         if ($key === null) {
@@ -886,6 +930,7 @@ class Session implements SessionContract, ArrayAccess, Countable, IteratorAggreg
      * @param string $message 成功信息
      * @return self
      */
+    #[\Override]
     public function setSuccess(string $key, string $message): self
     {
         $this->successes[$key] = $message;
@@ -898,6 +943,7 @@ class Session implements SessionContract, ArrayAccess, Countable, IteratorAggreg
      *
      * @param string $key 键名
      */
+    #[\Override]
     public function getSuccess(string $key): ?string
     {
         return $this->successes[$key] ?? null;
@@ -908,6 +954,7 @@ class Session implements SessionContract, ArrayAccess, Countable, IteratorAggreg
      *
      * @return array<string, string>
      */
+    #[\Override]
     public function getSuccesses(): array
     {
         return $this->successes;
@@ -918,6 +965,7 @@ class Session implements SessionContract, ArrayAccess, Countable, IteratorAggreg
      *
      * @param string|null $key 键名（为空时检查整体）
      */
+    #[\Override]
     public function hasSuccess(?string $key = null): bool
     {
         if ($key === null) {
@@ -932,6 +980,7 @@ class Session implements SessionContract, ArrayAccess, Countable, IteratorAggreg
      *
      * @return array<string, mixed>
      */
+    #[\Override]
     public function raw(): array
     {
         $result = [];
@@ -968,6 +1017,7 @@ class Session implements SessionContract, ArrayAccess, Countable, IteratorAggreg
      *
      * @param mixed $offset 偏移量
      */
+    #[\Override]
     public function offsetExists(mixed $offset): bool
     {
         return $this->has((string) $offset);
@@ -978,6 +1028,7 @@ class Session implements SessionContract, ArrayAccess, Countable, IteratorAggreg
      *
      * @param mixed $offset 偏移量
      */
+    #[\Override]
     public function offsetGet(mixed $offset): mixed
     {
         return $this->get((string) $offset);
@@ -989,6 +1040,7 @@ class Session implements SessionContract, ArrayAccess, Countable, IteratorAggreg
      * @param mixed $offset 偏移量
      * @param mixed $value  值
      */
+    #[\Override]
     public function offsetSet(mixed $offset, mixed $value): void
     {
         $this->set((string) $offset, $value);
@@ -999,6 +1051,7 @@ class Session implements SessionContract, ArrayAccess, Countable, IteratorAggreg
      *
      * @param mixed $offset 偏移量
      */
+    #[\Override]
     public function offsetUnset(mixed $offset): void
     {
         $this->delete((string) $offset);
@@ -1007,6 +1060,7 @@ class Session implements SessionContract, ArrayAccess, Countable, IteratorAggreg
     /**
      * 计算数据数量
      */
+    #[\Override]
     public function count(): int
     {
         return count($this->raw());
@@ -1015,6 +1069,7 @@ class Session implements SessionContract, ArrayAccess, Countable, IteratorAggreg
     /**
      * 获取迭代器
      */
+    #[\Override]
     public function getIterator(): Traversable
     {
         return new \ArrayIterator($this->raw());

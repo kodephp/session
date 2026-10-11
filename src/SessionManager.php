@@ -116,6 +116,7 @@ class SessionManager implements SessionFactory
      * @param array  $config 配置参数
      * @return Session
      */
+    #[\Override]
     public function make(string $id, array $config = []): Session
     {
         $driverName = $config['driver'] ?? $this->defaultDriver;

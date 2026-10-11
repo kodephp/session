@@ -1,6 +1,6 @@
 {
     "name": "kode/session",
-    "version": "4.0.0",
+    "version": "4.0.1",
     "description": "kode/session - 分布式会话管理器，支持文件、Redis、Cookie、内存等驱动",
     "license": "Apache-2.0",
     "type": "library",

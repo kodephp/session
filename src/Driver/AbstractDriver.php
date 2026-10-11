@@ -112,6 +112,7 @@ abstract class AbstractDriver implements Driver
      * @param array<string, mixed> $values   键值对
      * @param int                  $lifetime 生命周期
      */
+    #[\Override]
     public function setMultiple(string $id, array $values, int $lifetime = 0): bool
     {
         $ok = true;
@@ -128,6 +129,7 @@ abstract class AbstractDriver implements Driver
      *
      * @param string $id Session ID
      */
+    #[\Override]
     public function exists(string $id): bool
     {
         return $this->all($id) !== [];
@@ -140,6 +142,7 @@ abstract class AbstractDriver implements Driver
      * @param string $name    键名
      * @param mixed  $default 默认值
      */
+    #[\Override]
     public function pull(string $id, string $name, mixed $default = null): mixed
     {
         $value = $this->get($id, $name, $default);
@@ -156,6 +159,7 @@ abstract class AbstractDriver implements Driver
      * @param callable $callback 回调函数
      * @param int      $lifetime 生命周期
      */
+    #[\Override]
     public function remember(string $id, string $name, callable $callback, int $lifetime = 0): mixed
     {
         if ($this->has($id, $name)) {
@@ -175,6 +179,7 @@ abstract class AbstractDriver implements Driver
      * @param string $toId   新 Session ID
      * @param bool   $delete 是否删除原数据
      */
+    #[\Override]
     public function migrate(string $fromId, string $toId, bool $delete = true): bool
     {
         if ($fromId === $toId) {
@@ -197,6 +202,7 @@ abstract class AbstractDriver implements Driver
     /**
      * 生成 session ID
      */
+    #[\Override]
     public function generateId(): string
     {
         return SessionId::generate();
@@ -208,6 +214,7 @@ abstract class AbstractDriver implements Driver
      * @param string   $id      Session ID
      * @param int|null $timeout 超时时间
      */
+    #[\Override]
     public function acquireLock(string $id, ?int $timeout = null): bool
     {
         return true;
@@ -218,6 +225,7 @@ abstract class AbstractDriver implements Driver
      *
      * @param string $id Session ID
      */
+    #[\Override]
     public function releaseLock(string $id): bool
     {
         return true;
@@ -399,5 +407,6 @@ abstract class AbstractDriver implements Driver
      * @param string $id Session ID
      * @return array<string, mixed>
      */
+    #[\Override]
     abstract public function all(string $id): array;
 }
