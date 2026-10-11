@@ -839,7 +839,7 @@ class Session implements SessionContract, ArrayAccess, Countable, IteratorAggreg
      * @param string|null $token 可选的新 token
      */
     #[\Override]
-    public function token(?string $token = null): string
+    public function token(#[\SensitiveParameter] ?string $token = null): string
     {
         if ($token !== null) {
             $this->csrfToken = $token;
@@ -866,7 +866,7 @@ class Session implements SessionContract, ArrayAccess, Countable, IteratorAggreg
      * @param string $token 待验证的 token
      */
     #[\Override]
-    public function verifyCsrfToken(string $token): bool
+    public function verifyCsrfToken(#[\SensitiveParameter] string $token): bool
     {
         return hash_equals($this->token(), $token);
     }

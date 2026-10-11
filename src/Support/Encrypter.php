@@ -56,7 +56,7 @@ final class Encrypter
      * @param string $secret 用户提供的密钥材料（任意长度字符串）
      * @throws RuntimeException 缺少 openssl 扩展时
      */
-    public function __construct(string $secret)
+    public function __construct(#[\SensitiveParameter] string $secret)
     {
         if (!extension_loaded('openssl')) {
             throw new RuntimeException('启用会话加密需要 openssl 扩展');

@@ -400,7 +400,7 @@ class RedisDriver extends AbstractDriver
      * @param int         $database 数据库
      * @return \Redis
      */
-    protected function createPhpRedisConnection(string $host, int $port, ?string $password, int $database): mixed
+    protected function createPhpRedisConnection(string $host, int $port, #[\SensitiveParameter] ?string $password, int $database): mixed
     {
         /** @var \Redis $redis */
         $redis = new \Redis();
@@ -434,7 +434,7 @@ class RedisDriver extends AbstractDriver
      * @param int         $database 数据库
      * @return PredisClient
      */
-    protected function createPredisConnection(string $host, int $port, ?string $password, int $database): PredisClient
+    protected function createPredisConnection(string $host, int $port, #[\SensitiveParameter] ?string $password, int $database): PredisClient
     {
         $parameters = [
             'scheme' => 'tcp',

@@ -323,7 +323,7 @@ interface Session extends ArrayAccess, Countable, IteratorAggregate
      * @param string|null $token 可选的新 token
      * @return string
      */
-    public function token(?string $token = null): string;
+    public function token(#[\SensitiveParameter] ?string $token = null): string;
 
     /**
      * 验证 CSRF token
@@ -331,7 +331,7 @@ interface Session extends ArrayAccess, Countable, IteratorAggregate
      * @param string $token 待验证的 token
      * @return bool
      */
-    public function verifyCsrfToken(string $token): bool;
+    public function verifyCsrfToken(#[\SensitiveParameter] string $token): bool;
 
     /**
      * 设置错误信息

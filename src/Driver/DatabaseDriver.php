@@ -465,7 +465,7 @@ class DatabaseDriver extends AbstractDriver
     /**
      * 尝试认领锁（插入或抢占过期锁）
      */
-    protected function tryClaimLock(string $id, string $token, int $expire): bool
+    protected function tryClaimLock(string $id, #[\SensitiveParameter] string $token, int $expire): bool
     {
         $pdo = $this->getPdo();
         $table = $this->quoteIdentifier($this->lockTable);
