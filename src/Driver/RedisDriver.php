@@ -148,13 +148,7 @@ class RedisDriver extends AbstractDriver
             return true;
         }
 
-        foreach ($pipeline as $key => $payload) {
-            if ($redis->setex($key, $ttl, $payload) === false) {
-                return false;
-            }
-        }
-
-        return true;
+        return array_all($pipeline, fn($payload, $key) => !($redis->setex($key, $ttl, $payload) === false));
     }
 
     /**
