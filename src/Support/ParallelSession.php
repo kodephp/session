@@ -214,7 +214,9 @@ class ParallelSession
 
         pcntl_wait($status);
 
-        $result = unserialize($resultData);
+        // 数据来自本进程 fork 的子进程经本地 socket 回传，非外部输入；
+        // 显式 allowed_classes=true 与库内其余 unserialize 口径一致（结果可能含任意对象）。
+        $result = @unserialize($resultData, ['allowed_classes' => true]);
 
         if ($this->session !== null) {
             foreach ($result['data'] ?? [] as $key => $value) {
