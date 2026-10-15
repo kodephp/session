@@ -230,9 +230,9 @@ class ParallelSession
     /**
      * 使用流模拟 fork（兼容不支持的系统）
      *
-     * @param callable $callback  回调函数
-     * @param string  $sessionId Session ID
-     * @param array   $data     数据
+     * @param callable $callback   回调函数
+     * @param string   $_sessionId Session ID
+     * @param array    $_data      数据
      * @return mixed
      */
     protected function forkWithStream(callable $callback, string $_sessionId, array $_data): mixed
@@ -243,9 +243,9 @@ class ParallelSession
     /**
      * 在协程中执行
      *
-     * @param callable $callback 回调函数
-     * @param array    $data     数据
-     * @return \Fiber
+     * @param  callable $callback 回调函数
+     * @param  array    $data     数据
+     * @return \Fiber<mixed, mixed, mixed, mixed>
      */
     public function async(callable $callback, array $data = []): \Fiber
     {

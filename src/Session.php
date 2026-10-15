@@ -16,6 +16,9 @@ use Traversable;
  * 提供完整的 session 功能，包括闪存、错误/成功信息、CSRF 保护等
  *
  * @author kode
+ *
+ * @implements ArrayAccess<string, mixed>
+ * @implements IteratorAggregate<string, mixed>
  */
 class Session implements SessionContract, ArrayAccess, Countable, IteratorAggregate
 {
@@ -441,14 +444,6 @@ class Session implements SessionContract, ArrayAccess, Countable, IteratorAggreg
 
         if (is_bool($value)) {
             return $value ? '1' : '0';
-        }
-
-        if ($value === null) {
-            return $default;
-        }
-
-        if (is_scalar($value)) {
-            return (string) $value;
         }
 
         return $default;

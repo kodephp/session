@@ -12,6 +12,9 @@ use IteratorAggregate;
  * Session 会话接口
  *
  * @author kode
+ *
+ * @extends ArrayAccess<string, mixed>
+ * @extends IteratorAggregate<string, mixed>
  */
 interface Session extends ArrayAccess, Countable, IteratorAggregate
 {

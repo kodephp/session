@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace Kode\Session\Support;
 
+use WeakMap;
+
 /**
  * Fiber 安全存储 - 在 Fiber 中安全传递 session
  * 解决 PHP Fiber 中的数据隔离问题
@@ -18,14 +20,14 @@ final class FiberSessionStorage
     /**
      * 以 Fiber 为键的弱引用存储
      *
-     * @var WeakMap<\Fiber<mixed>, array<string, mixed>>|null
+     * @var WeakMap<\Fiber<mixed, mixed, mixed, mixed>, array<string, mixed>>|null
      */
     private static ?WeakMap $storages = null;
 
     /**
      * 获取（惰性初始化）WeakMap
      *
-     * @return WeakMap<\Fiber<mixed>, array<string, mixed>>
+     * @return WeakMap<\Fiber<mixed, mixed, mixed, mixed>, array<string, mixed>>
      */
     private static function storage(): WeakMap
     {

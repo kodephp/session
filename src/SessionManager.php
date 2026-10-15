@@ -56,7 +56,7 @@ class SessionManager implements SessionFactory
     /**
      * GC 配置（全局默认值，可被中间件配置覆盖）
      *
-     * @var array{probability: int, divisor: int, lifetime: int}
+     * @var array{gc_probability: int, gc_divisor: int, gc_lifetime: int}
      */
     protected array $gcConfig = [
         'gc_probability' => 10,
